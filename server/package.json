@@ -1,0 +1,24 @@
+{
+  "name": "code-generation-backend",
+  "version": "1.0.0",
+  "description": "Backend API for CRUD code generation",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "helmet": "^7.0.0",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["code-generation", "crud", "express", "api"],
+  "author": "Isuru Sajith",
+  "license": "MIT"
+}
