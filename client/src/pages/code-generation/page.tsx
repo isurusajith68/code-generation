@@ -1019,7 +1019,7 @@ export const useGet${entityUpper} = (
     queryKey: ["${entityLower}", page, limit],
     queryFn: async () => {
       const response = await Axios.get(
-        \`\${apiUrl}${backendRoutePath}/select-all-${entityLower}?page=\${page}&limit=\${limit}&all${entityUpper}=\${all${entityUpper}}\`,
+        \`\${apiUrl}/${entityUpper}/select-all-${entityLower}?page=\${page}&limit=\${limit}&all${entityUpper}=\${all${entityUpper}}\`,
         {
           withCredentials: true,
         }
@@ -1040,7 +1040,7 @@ export const useAdd${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (data: unknown) => {
       const response = await Axios.post(
-        \`\${apiUrl}${backendRoutePath}/add-${entityLower}\`,
+        \`\${apiUrl}/${entityUpper}/add-${entityLower}\`,
         data,
         {
           withCredentials: true,
@@ -1063,7 +1063,7 @@ export const useUpdate${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (data: unknown) => {
       const response = await Axios.put(
-        \`\${apiUrl}${backendRoutePath}/update-${entityLower}\`,
+        \`\${apiUrl}/${entityUpper}/update-${entityLower}\`,
         data,
         {
           withCredentials: true,
@@ -1086,7 +1086,7 @@ export const useDelete${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const response = await Axios.delete(
-        \`\${apiUrl}${backendRoutePath}/delete-${entityLower}/\${id}\`,
+        \`\${apiUrl}/${entityUpper}/delete-${entityLower}/\${id}\`,
         {
           withCredentials: true,
         }
@@ -1102,10 +1102,10 @@ export const useDelete${entityUpper}Mutation = () => {
 };`;
 
     const backendRoutes = `const express = require('express');
-const router = express.Router();
+const ${entityUpper} = express.Router();
 
 // Add ${entityUpper}
-router.post("/add-${entityLower}", async (req, res) => {
+${entityUpper}.post("/add-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
@@ -1131,7 +1131,7 @@ router.post("/add-${entityLower}", async (req, res) => {
 });
 
 // Update ${entityUpper}
-router.put("/update-${entityLower}", async (req, res) => {
+${entityUpper}.put("/update-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
@@ -1165,7 +1165,7 @@ router.put("/update-${entityLower}", async (req, res) => {
 });
 
 // Delete ${entityUpper}
-router.delete("/delete-${entityLower}/:id", async (req, res) => {
+${entityUpper}.delete("/delete-${entityLower}/:id", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
@@ -1197,7 +1197,7 @@ router.delete("/delete-${entityLower}/:id", async (req, res) => {
 });
 
 // Get All ${entityUpper}
-router.get("/select-all-${entityLower}", async (req, res) => {
+${entityUpper}.get("/select-all-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
@@ -1235,7 +1235,7 @@ router.get("/select-all-${entityLower}", async (req, res) => {
   }
 });
 
-module.exports = router;`;
+export default ${entityUpper}`;
 
     setGeneratedCode({
       mainComponent,
