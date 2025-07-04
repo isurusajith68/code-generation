@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,8 @@ interface Field {
   required: boolean;
   dbType: string;
   selectOptions: string;
+  radioOptions: string;
+  defaultValue: string;
 }
 
 interface GeneratedCode {
@@ -32,6 +34,17 @@ interface GeneratedCode {
   queries: string;
   mutations: string;
   backendRoutes: string;
+}
+
+interface TableColumn {
+  column_name: string;
+  data_type: string;
+  is_nullable: string;
+  column_default: string;
+}
+
+interface DatabaseTable {
+  table_name: string;
 }
 
 const CodeGenerationPage = () => {
@@ -51,6 +64,144 @@ const CodeGenerationPage = () => {
   });
   const [isReplacing, setIsReplacing] = useState(false);
   const [showGenerated, setShowGenerated] = useState(false);
+
+  const [selectedSchema, setSelectedSchema] = useState("public");
+  const [selectedTable, setSelectedTable] = useState("");
+  const [tables, setTables] = useState<DatabaseTable[]>([]);
+  const [tableColumns, setTableColumns] = useState<TableColumn[]>([]);
+  const [isLoadingTables, setIsLoadingTables] = useState(false);
+  const [isLoadingColumns, setIsLoadingColumns] = useState(false);
+
+  const loadTables = async (schema: string) => {
+    if (!schema) return;
+
+    setIsLoadingTables(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const response = await fetch(`${apiUrl}/sys/tables?schema=${schema}`);
+      const data = await response.json();
+      setTables(data.tables || []);
+      setSelectedTable("");
+      setTableColumns([]);
+    } catch (error) {
+      console.error("Error loading tables:", error);
+      toast.error("Failed to load tables");
+      setTables([]);
+    } finally {
+      setIsLoadingTables(false);
+    }
+  };
+
+  const loadTableStructure = async (tableName: string, schema: string) => {
+    if (!tableName || !schema) return;
+
+    setIsLoadingColumns(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const response = await fetch(
+        `${apiUrl}/sys/tables/${tableName}/structure?schema=${schema}`
+      );
+      const data = await response.json();
+      setTableColumns(data.columns || []);
+    } catch (error) {
+      console.error("Error loading table structure:", error);
+      toast.error("Failed to load table structure");
+      setTableColumns([]);
+    } finally {
+      setIsLoadingColumns(false);
+    }
+  };
+
+  const populateFieldsFromTable = () => {
+    if (tableColumns.length === 0) {
+      toast.error("No table columns found");
+      return;
+    }
+
+    const excludeColumns = ["id"];
+
+    const newFields = tableColumns
+      .filter((col) => !excludeColumns.includes(col.column_name.toLowerCase()))
+      .map((col) => {
+        let fieldType = "text";
+
+        if (col.data_type.includes("boolean")) {
+          fieldType = "boolean";
+        } else if (
+          col.data_type.includes("int") ||
+          col.data_type.includes("serial")
+        ) {
+          fieldType = "number";
+        } else if (
+          col.data_type.includes("text") ||
+          (col.data_type.includes("varchar") && col.data_type.includes("255"))
+        ) {
+          fieldType = "textarea";
+        } else if (col.column_name.toLowerCase().includes("email")) {
+          fieldType = "email";
+        } else if (
+          col.column_name.toLowerCase().includes("date") ||
+          col.data_type.includes("date")
+        ) {
+          fieldType = "date";
+        } else if (col.column_name.toLowerCase().includes("password")) {
+          fieldType = "password";
+        } else if (col.column_name.toLowerCase().endsWith("_id")) {
+          fieldType = "select";
+        } else if (
+          col.column_name.toLowerCase().includes("status") ||
+          col.column_name.toLowerCase().includes("type") ||
+          col.column_name.toLowerCase().includes("category")
+        ) {
+          fieldType = "radio";
+        }
+
+        const label = col.column_name
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+
+        return {
+          id: Date.now() + Math.random(),
+          name: col.column_name,
+          label: label,
+          type: fieldType,
+          required: col.is_nullable === "NO",
+          dbType: col.data_type.toUpperCase(),
+          selectOptions:
+            fieldType === "select" ? "Option1, Option2, Option3" : "",
+          radioOptions: fieldType === "radio" ? "Active, Inactive" : "",
+          defaultValue: fieldType === "boolean" ? "false" : "",
+        };
+      });
+
+    setFields(newFields);
+
+    if (selectedTable && !tableName) {
+      setTableName(selectedTable);
+    }
+    if (selectedTable && !entityName) {
+      const cleanEntityName = selectedTable
+        .replace(/^(operation_|core_|seed_)/, "")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase())
+        .replace(/\s/g, "");
+      setEntityName(cleanEntityName);
+    }
+
+    toast.success(`Added ${newFields.length} fields from table structure`);
+  };
+
+  useEffect(() => {
+    if (selectedSchema) {
+      loadTables(selectedSchema);
+    }
+  }, [selectedSchema]);
+
+  useEffect(() => {
+    if (selectedTable && selectedSchema) {
+      loadTableStructure(selectedTable, selectedSchema);
+    }
+  }, [selectedTable, selectedSchema]);
 
   const replaceAllFiles = async () => {
     if (!entityName || !frontendPath || !backendRoutePath) {
@@ -114,18 +265,16 @@ const CodeGenerationPage = () => {
         ],
       };
 
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const apiUrl2 =
+        import.meta.env.VITE_API_URL_CODEGEN || "http://localhost:5000";
 
-      const response = await fetch(
-        `${apiUrl}/api/code-generation/replace-files`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(`${apiUrl2}/code-generation/replace-files`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const result = await response.json();
 
@@ -147,6 +296,8 @@ const CodeGenerationPage = () => {
     { value: "textarea", label: "Textarea" },
     { value: "number", label: "Number Input" },
     { value: "select", label: "Select Dropdown" },
+    { value: "radio", label: "Radio Button" },
+    { value: "boolean", label: "Boolean Switch" },
     { value: "date", label: "Date Input" },
     { value: "email", label: "Email Input" },
     { value: "password", label: "Password Input" },
@@ -163,6 +314,8 @@ const CodeGenerationPage = () => {
         required: false,
         dbType: "VARCHAR(255)",
         selectOptions: "",
+        radioOptions: "",
+        defaultValue: "",
       },
     ]);
   };
@@ -202,6 +355,16 @@ const CodeGenerationPage = () => {
                 ? '.min(1, "Selection is required")'
                 : ".optional()"
             }`;
+            break;
+          case "radio":
+            zodType = `z.string()${
+              field.required
+                ? '.min(1, "Selection is required")'
+                : ".optional()"
+            }`;
+            break;
+          case "boolean":
+            zodType = `z.boolean()${field.required ? "" : ".optional()"}`;
             break;
           default:
             zodType = `z.string()${
@@ -246,7 +409,6 @@ const CodeGenerationPage = () => {
                         <SelectValue placeholder="Select ${fieldLabel}" />
                       </SelectTrigger>
                       <SelectContent>
-                        {/* Add your options here */}
                         ${field.selectOptions
                           .split(",")
                           .map(
@@ -258,6 +420,67 @@ const CodeGenerationPage = () => {
                     </Select>
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />`;
+          case "radio":
+            return `
+            <FormField
+              control={form.control}
+              name="${fieldName}"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>
+                    ${fieldLabel} ${
+              isRequired ? '<span className="text-red-700">*</span>' : ""
+            }
+                  </FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      className="flex flex-col space-y-1"
+                    >
+                      ${field.radioOptions
+                        .split(",")
+                        .map(
+                          (option) =>
+                            `<FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="${option.trim()}" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          ${option.trim()}
+                        </FormLabel>
+                      </FormItem>`
+                        )
+                        .join("\n                      ")}
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />`;
+          case "boolean":
+            return `
+            <FormField
+              control={form.control}
+              name="${fieldName}"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      ${fieldLabel} ${
+              isRequired ? '<span className="text-red-700">*</span>' : ""
+            }
+                    </FormLabel>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />`;
@@ -343,11 +566,104 @@ const CodeGenerationPage = () => {
     return fields
       .map((field) => {
         if (field.type === "select") {
-          return `<TableCell className="text-center">{/* Add your select display logic here */}</TableCell>`;
+          return `<TableCell className="text-center">{/* Add select display logic */}</TableCell>`;
+        } else if (field.type === "boolean") {
+          return `<TableCell className="text-center">
+                              <Badge variant={item.${field.name} ? "default" : "secondary"}>
+                                {item.${field.name} ? "Yes" : "No"}
+                              </Badge>
+                            </TableCell>`;
+        } else if (field.type === "radio") {
+          return `<TableCell className="text-center">
+                              <Badge variant="outline">{item.${field.name}}</Badge>
+                            </TableCell>`;
         }
         return `<TableCell className="text-center">{item.${field.name}}</TableCell>`;
       })
       .join("\n                            ");
+  };
+
+  const generateEditFields = () => {
+    return fields
+      .map((field) => {
+        const fieldName =
+          field.name.charAt(0).toUpperCase() + field.name.slice(1);
+        if (field.type === "textarea") {
+          return `                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    ${field.label}
+                  </label>
+                  <Textarea
+                    value={updated${fieldName}}
+                    onChange={(e) => setUpdated${fieldName}(e.target.value)}
+                  />
+                </div>`;
+        } else if (field.type === "select") {
+          return `                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    ${field.label}
+                  </label>
+                  <Select
+                    value={updated${fieldName}}
+                    onValueChange={setUpdated${fieldName}}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select ${field.label}" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Add your options here */}
+                    </SelectContent>
+                  </Select>
+                </div>`;
+        } else if (field.type === "boolean") {
+          return `                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    ${field.label}
+                  </label>
+                  <Switch
+                    checked={updated${fieldName}}
+                    onCheckedChange={setUpdated${fieldName}}
+                  />
+                </div>`;
+        } else if (field.type === "radio") {
+          return `                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ${field.label}
+                  </label>
+                  <RadioGroup
+                    value={updated${fieldName}}
+                    onValueChange={setUpdated${fieldName}}
+                  >
+                    ${field.radioOptions
+                      .split(",")
+                      .map(
+                        (option) =>
+                          `<div className="flex items-center space-x-2">
+                      <RadioGroupItem value="${option.trim()}" id="${option.trim()}" />
+                      <Label htmlFor="${option.trim()}">${option.trim()}</Label>
+                    </div>`
+                      )
+                      .join("\n                    ")}
+                  </RadioGroup>
+                </div>`;
+        } else {
+          return `                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    ${field.label}
+                  </label>
+                  <Input
+                    type="${field.type === "number" ? "number" : "text"}"
+                    value={updated${fieldName}}
+                    onChange={(e) => setUpdated${fieldName}(${
+            field.type === "number"
+              ? "Number(e.target.value)"
+              : "e.target.value"
+          })}
+                  />
+                </div>`;
+        }
+      })
+      .join("\n\n");
   };
 
   const generateBackendFields = () => {
@@ -356,11 +672,9 @@ const CodeGenerationPage = () => {
     const insertValues = fields.map((f) => f.name).join(", ");
 
     return {
-      insertFields: `${insertFields}, property_id, createdate, created_by`,
-      insertPlaceholders: `${insertPlaceholders}, $${fields.length + 1}, $${
-        fields.length + 2
-      }, $${fields.length + 3}`,
-      insertValues: `${insertValues}, propertyId, new Date(), req.userId`,
+      insertFields: `${insertFields}`,
+      insertPlaceholders: `${insertPlaceholders}`,
+      insertValues: `${insertValues}`,
       updateFields: fields.map((f, i) => `${f.name} = $${i + 1}`).join(", "),
       updatePlaceholders: fields.map((f) => f.name).join(", "),
     };
@@ -431,6 +745,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -453,6 +769,9 @@ const Add${entityUpper} = ({
         .map((f) => {
           if (f.type === "number") return `${f.name}: 0`;
           if (f.type === "select") return `${f.name}: undefined`;
+          if (f.type === "boolean")
+            return `${f.name}: ${f.defaultValue === "true"}`;
+          if (f.type === "radio") return `${f.name}: ""`;
           return `${f.name}: ""`;
         })
         .join(",\n      ")}
@@ -541,6 +860,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -588,7 +910,7 @@ const List${entityUpper} = ({ setOpen }) => {
           f.name.charAt(0).toUpperCase() + f.name.slice(1)
         }, setUpdated${
           f.name.charAt(0).toUpperCase() + f.name.slice(1)
-        }] = useState("");`
+        }] = useState(${f.type === "boolean" ? "false" : '""'});`
     )
     .join("\n  ")}
 
@@ -663,7 +985,6 @@ const List${entityUpper} = ({ setOpen }) => {
     );
   };
 
-
   return (
     <Card className="w-full">
       <CardHeader className="bg-gray-50 pt-2">
@@ -714,12 +1035,10 @@ const List${entityUpper} = ({ setOpen }) => {
                           >
                             ${generateTableCells()}
                             <TableCell className="text-center items-center justify-center flex gap-5">
-                           
                                 <Edit2
                                   className="h-4 w-4 text-blue-600 cursor-pointer"
                                   onClick={() => handleEdit(item)}
                                 />
-                              
                                 <Dialog>
                                   <DialogTrigger asChild>
                                     <Trash className="h-4 w-4 text-red-600 cursor-pointer" />
@@ -793,61 +1112,15 @@ const List${entityUpper} = ({ setOpen }) => {
             </DialogTitle>
             <DialogDescription>
               <div className="space-y-4">
-                ${fields
-                  .map((field) => {
-                    const fieldName =
-                      field.name.charAt(0).toUpperCase() + field.name.slice(1);
-                    if (field.type === "textarea") {
-                      return `<div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    ${field.label}
-                  </label>
-                  <Textarea
-                    value={updated${fieldName}}
-                    onChange={(e) => setUpdated${fieldName}(e.target.value)}
-                  />
-                </div>`;
-                    } else if (field.type === "select") {
-                      return `<div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    ${field.label}
-                  </label>
-                  <Select
-                    value={updated${fieldName}}
-                    onValueChange={setUpdated${fieldName}}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select ${field.label}" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Add your options here */}
-                    </SelectContent>
-                  </Select>
-                </div>`;
-                    } else {
-                      return `<div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    ${field.label}
-                  </label>
-                  <Input
-                    type="${field.type === "number" ? "number" : "text"}"
-                    value={updated${fieldName}}
-                    onChange={(e) => setUpdated${fieldName}(${
-                        field.type === "number"
-                          ? "Number(e.target.value)"
-                          : "e.target.value"
-                      })}
-                  />
-                </div>`;
-                    }
-                  })
-                  .join("\n\n                ")}
+${generateEditFields()}
               </div>
             </DialogDescription>
-            <DialogFooter>
-              <Button onClick={handleUpdate} className="cursor-pointer">Save</Button>
-            </DialogFooter>
           </AlertDialogHeader>
+          <DialogFooter>
+            <Button onClick={handleUpdate} className="cursor-pointer">
+              Save
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>
@@ -870,7 +1143,7 @@ export const useGet${entityUpper} = (
     queryKey: ["${entityLower}", page, limit],
     queryFn: async () => {
       const response = await Axios.get(
-        \`\${apiUrl}/select-all-${entityLower}?page=\${page}&limit=\${limit}&all${entityUpper}=\${all${entityUpper}}\`,
+        \`\${apiUrl}/${entityUpper}/select-all-${entityLower}?page=\${page}&limit=\${limit}&all${entityUpper}=\${all${entityUpper}}\`,
         {
           withCredentials: true,
         }
@@ -891,7 +1164,7 @@ export const useAdd${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (data: unknown) => {
       const response = await Axios.post(
-        \`\${apiUrl}/add-${entityLower}\`,
+        \`\${apiUrl}/${entityUpper}/add-${entityLower}\`,
         data,
         {
           withCredentials: true,
@@ -914,7 +1187,7 @@ export const useUpdate${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (data: unknown) => {
       const response = await Axios.put(
-        \`\${apiUrl}/update-${entityLower}\`,
+        \`\${apiUrl}/${entityUpper}/update-${entityLower}\`,
         data,
         {
           withCredentials: true,
@@ -937,7 +1210,7 @@ export const useDelete${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const response = await Axios.delete(
-        \`\${apiUrl}/delete-${entityLower}/\${id}\`,
+        \`\${apiUrl}/${entityUpper}/delete-${entityLower}/\${id}\`,
         {
           withCredentials: true,
         }
@@ -952,8 +1225,11 @@ export const useDelete${entityUpper}Mutation = () => {
   });
 };`;
 
-    const backendRoutes = `// Add ${entityUpper}
-${entityLower}Router.post("/add-${entityLower}", async (req, res) => {
+    const backendRoutes = `import express from "express";
+const ${entityUpper} = express.Router();
+
+// Add ${entityUpper}
+${entityUpper}.post("/add-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
@@ -979,17 +1255,17 @@ ${entityLower}Router.post("/add-${entityLower}", async (req, res) => {
 });
 
 // Update ${entityUpper}
-${entityLower}Router.put("/update-${entityLower}", async (req, res) => {
+${entityUpper}.put("/update-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
     const { ${fields.map((f) => f.name).join(", ")}, item_id } = req.body;
 
     const updated${entityUpper} = await pool.query(
-      \`UPDATE ${tableName} SET ${backendFields.updateFields} WHERE id = $${
+      \`UPDATE ${tableName} SET ${backendFields.updateFields} WHERE id = ${
       fields.length + 1
-    } AND property_id = $${fields.length + 2} RETURNING *\`,
-      [${backendFields.updatePlaceholders}, item_id, propertyId]
+    } RETURNING *\`,
+      [${backendFields.updatePlaceholders}, item_id]
     );
 
     if (updated${entityUpper}.rows.length === 0) {
@@ -1013,15 +1289,15 @@ ${entityLower}Router.put("/update-${entityLower}", async (req, res) => {
 });
 
 // Delete ${entityUpper}
-${entityLower}Router.delete("/delete-${entityLower}/:id", async (req, res) => {
+${entityUpper}.delete("/delete-${entityLower}/:id", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
     const ${entityLower}Id = req.params.id;
 
     const deleted${entityUpper} = await pool.query(
-      \`DELETE FROM ${tableName} WHERE id = $1 AND property_id = $2 RETURNING *\`,
-      [${entityLower}Id, propertyId]
+      \`DELETE FROM ${tableName} WHERE id = $1 RETURNING *\`,
+      [${entityLower}Id]
     );
 
     if (deleted${entityUpper}.rows.length === 0) {
@@ -1045,18 +1321,18 @@ ${entityLower}Router.delete("/delete-${entityLower}/:id", async (req, res) => {
 });
 
 // Get All ${entityUpper}
-${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
+${entityUpper}.get("/select-all-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
     const { page = 1, limit = 10, all${entityUpper} = false } = req.query;
 
-    let query = \`SELECT * FROM ${tableName} WHERE property_id = $1\`;
-    let queryParams = [propertyId];
+    let query = \`SELECT * FROM ${tableName}\`;
+    let queryParams = [];
 
     if (!all${entityUpper}) {
       const offset = (page - 1) * limit;
-      query += \` ORDER BY createdate DESC LIMIT $2 OFFSET $3\`;
+      query += \` ORDER BY createdate DESC LIMIT $1 OFFSET $2\`;
       queryParams.push(limit, offset);
     }
 
@@ -1064,8 +1340,7 @@ ${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
 
     // Get total count for pagination
     const countResult = await pool.query(
-      \`SELECT COUNT(*) FROM ${tableName} WHERE property_id = $1\`,
-      [propertyId]
+      \`SELECT COUNT(*) FROM ${tableName}\`
     );
 
     res.status(200).json({
@@ -1081,7 +1356,9 @@ ${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
       message: err.message,
     });
   }
-});`;
+});
+
+export default ${entityUpper}`;
 
     setGeneratedCode({
       mainComponent,
@@ -1126,6 +1403,112 @@ ${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Code className="h-5 w-5" />
+                Database Schema & Table Selection
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="schema">Database Schema</Label>
+                  <Select
+                    value={selectedSchema}
+                    onValueChange={setSelectedSchema}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Schema" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="public">Public</SelectItem>
+                      <SelectItem value="seed">Seed</SelectItem>
+                      <SelectItem value="core_data">Core Data</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="table">Database Table</Label>
+                  <Select
+                    value={selectedTable}
+                    onValueChange={setSelectedTable}
+                    disabled={isLoadingTables || tables.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          isLoadingTables
+                            ? "Loading tables..."
+                            : tables.length === 0
+                            ? "No tables found"
+                            : "Select Table"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tables.map((table) => (
+                        <SelectItem
+                          key={table.table_name}
+                          value={table.table_name}
+                        >
+                          {table.table_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    onClick={populateFieldsFromTable}
+                    disabled={
+                      !selectedTable ||
+                      isLoadingColumns ||
+                      tableColumns.length === 0
+                    }
+                    className="w-full"
+                    variant="outline"
+                  >
+                    {isLoadingColumns ? (
+                      <>
+                        <Code className="h-4 w-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Auto-populate Fields
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {tableColumns.length > 0 && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium mb-2">
+                    Table Columns ({tableColumns.length})
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    {tableColumns.map((col, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {col.column_name}
+                        </Badge>
+                        <span className="text-gray-500 text-xs">
+                          {col.data_type}
+                        </span>
+                        {col.is_nullable === "NO" && (
+                          <span className="text-red-500 text-xs">*</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Code className="h-5 w-5" />
                 Project Configuration
               </CardTitle>
             </CardHeader>
@@ -1164,7 +1547,7 @@ ${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
                     id="frontendPath"
                     value={frontendPath}
                     onChange={(e) => setFrontendPath(e.target.value)}
-                    placeholder="/src/pages/products"
+                    placeholder="D:\ceyinfo\Hotel-ERP-Repo\hotel-property-module\src\pages"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -1173,7 +1556,7 @@ ${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
                     id="backendPath"
                     value={backendRoutePath}
                     onChange={(e) => setBackendRoutePath(e.target.value)}
-                    placeholder="/api/products"
+                    placeholder="D:\ceyinfo\Hotel-ERP-Repo\x-hotel-erp-backend\routes"
                   />
                 </div>
               </div>
@@ -1196,7 +1579,8 @@ ${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
             <CardContent>
               {fields.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  No fields added yet. Click "Add Field" to get started.
+                  No fields added yet. Click "Add Field" or use "Auto-populate
+                  Fields" to get started.
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1297,6 +1681,41 @@ ${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
                           />
                         </div>
                       )}
+                      {field.type === "radio" && (
+                        <div className="mt-4">
+                          <Label>Radio Options (comma-separated)</Label>
+                          <Input
+                            value={field.radioOptions}
+                            onChange={(e) =>
+                              updateField(
+                                field.id,
+                                "radioOptions",
+                                e.target.value
+                              )
+                            }
+                            placeholder="Active, Inactive"
+                          />
+                        </div>
+                      )}
+                      {field.type === "boolean" && (
+                        <div className="mt-4">
+                          <Label>Default Value</Label>
+                          <Select
+                            value={field.defaultValue}
+                            onValueChange={(value) =>
+                              updateField(field.id, "defaultValue", value)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select default value" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">True</SelectItem>
+                              <SelectItem value="false">False</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </Card>
                   ))}
                 </div>
@@ -1374,7 +1793,7 @@ ${entityLower}Router.get("/select-all-${entityLower}", async (req, res) => {
 
               <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <h4 className="font-medium text-yellow-800 mb-2">
-                  Files that will be created/replaced:
+                  📁 Files that will be created/replaced:
                 </h4>
                 <div className="grid grid-cols-1 gap-2 text-sm">
                   <div className="space-y-1 text-green-700">

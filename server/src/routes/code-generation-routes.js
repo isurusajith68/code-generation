@@ -23,7 +23,7 @@ router.post("/replace-files", async (req, res) => {
 
     logger.info(`Starting file replacement for entity: ${entityName}`);
 
-    // Validate required fields
+
     if (
       !entityName ||
       !frontendPath ||
@@ -38,7 +38,6 @@ router.post("/replace-files", async (req, res) => {
       });
     }
 
-    // Clean and validate paths
     const cleanFrontendPath = cleanPath(frontendPath);
     const cleanBackendPath = cleanPath(backendPath);
 
@@ -52,25 +51,20 @@ router.post("/replace-files", async (req, res) => {
     const createdFiles = [];
     const errors = [];
 
-    // Process each file
     for (const file of files) {
       try {
         const { filename, path: relativePath, content, type } = file;
 
-        // Clean the relative path and remove any extra spaces
         const cleanRelativePath = cleanPath(relativePath);
 
-        // Construct full file path using path.resolve for proper handling
         const fullPath = path.resolve(cleanRelativePath, filename);
         const dirPath = path.dirname(fullPath);
 
         logger.info(`Creating ${type} file: ${fullPath}`);
         logger.info(`Directory path: ${dirPath}`);
 
-        // Ensure directory exists
         await ensureDirectoryExists(dirPath);
 
-        // Write file
         await fs.writeFile(fullPath, content, "utf8");
 
         createdFiles.push({
