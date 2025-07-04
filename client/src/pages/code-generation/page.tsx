@@ -63,7 +63,7 @@ const CodeGenerationPage = () => {
   const [isReplacing, setIsReplacing] = useState(false);
   const [showGenerated, setShowGenerated] = useState(false);
 
-  // Database schema states
+
   const [selectedSchema, setSelectedSchema] = useState("public");
   const [selectedTable, setSelectedTable] = useState("");
   const [tables, setTables] = useState<DatabaseTable[]>([]);
@@ -71,7 +71,6 @@ const CodeGenerationPage = () => {
   const [isLoadingTables, setIsLoadingTables] = useState(false);
   const [isLoadingColumns, setIsLoadingColumns] = useState(false);
 
-  // Load tables when schema changes
   const loadTables = async (schema: string) => {
     if (!schema) return;
 
@@ -92,7 +91,7 @@ const CodeGenerationPage = () => {
     }
   };
 
-  // Load table structure when table changes
+
   const loadTableStructure = async (tableName: string, schema: string) => {
     if (!tableName || !schema) return;
 
@@ -113,7 +112,7 @@ const CodeGenerationPage = () => {
     }
   };
 
-  // Auto-populate fields from table columns
+  
   const populateFieldsFromTable = () => {
     if (tableColumns.length === 0) {
       toast.error("No table columns found");
@@ -132,7 +131,7 @@ const CodeGenerationPage = () => {
     const newFields = tableColumns
       .filter((col) => !excludeColumns.includes(col.column_name.toLowerCase()))
       .map((col) => {
-        // Map PostgreSQL types to form field types
+       
         let fieldType = "text";
 
         if (col.data_type.includes("int") || col.data_type.includes("serial")) {
@@ -155,7 +154,7 @@ const CodeGenerationPage = () => {
           fieldType = "select";
         }
 
-        // Create readable label from column name
+     
         const label = col.column_name
           .replace(/_/g, " ")
           .replace(/\b\w/g, (l) => l.toUpperCase());
@@ -174,31 +173,28 @@ const CodeGenerationPage = () => {
 
     setFields(newFields);
 
-    // Auto-populate table name and entity name if not set
+ 
     if (selectedTable && !tableName) {
       setTableName(selectedTable);
     }
     if (selectedTable && !entityName) {
-      // Convert table name to entity name (remove prefixes and capitalize)
       const cleanEntityName = selectedTable
-        .replace(/^(operation_|core_|seed_)/, "") // Remove common prefixes
+        .replace(/^(operation_|core_|seed_)/, "") 
         .replace(/_/g, " ")
         .replace(/\b\w/g, (l) => l.toUpperCase())
-        .replace(/\s/g, ""); // Remove spaces for PascalCase
+        .replace(/\s/g, ""); 
       setEntityName(cleanEntityName);
     }
 
     toast.success(`Added ${newFields.length} fields from table structure`);
   };
 
-  // Load tables when component mounts or schema changes
   useEffect(() => {
     if (selectedSchema) {
       loadTables(selectedSchema);
     }
   }, [selectedSchema]);
 
-  // Load table structure when table changes
   useEffect(() => {
     if (selectedTable && selectedSchema) {
       loadTableStructure(selectedTable, selectedSchema);
@@ -267,18 +263,16 @@ const CodeGenerationPage = () => {
         ],
       };
 
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const apiUrl2 =
+        import.meta.env.VITE_API_URL_CODEGEN || "http://localhost:5000";
 
-      const response = await fetch(
-        `${apiUrl}/code-generation/replace-files`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(`${apiUrl2}/code-generation/replace-files`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const result = await response.json();
 
@@ -1282,7 +1276,6 @@ module.exports = router;`;
 
       {!showGenerated ? (
         <div className="grid gap-6">
-          {/* Database Schema & Table Selection */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1364,7 +1357,6 @@ module.exports = router;`;
                 </div>
               </div>
 
-              {/* Table Columns Preview */}
               {tableColumns.length > 0 && (
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                   <h4 className="font-medium mb-2">
@@ -1390,7 +1382,6 @@ module.exports = router;`;
             </CardContent>
           </Card>
 
-          {/* Project Configuration */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1449,7 +1440,7 @@ module.exports = router;`;
             </CardContent>
           </Card>
 
-          {/* Fields Configuration */}
+        
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -1575,7 +1566,7 @@ module.exports = router;`;
             </CardContent>
           </Card>
 
-          {/* Generate Button */}
+        
           <div className="flex justify-center">
             <Button
               onClick={generateCode}
@@ -1616,7 +1607,7 @@ module.exports = router;`;
             </div>
           </div>
 
-          {/* File Replacement Paths */}
+   
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">File Replacement Paths</CardTitle>
@@ -1684,7 +1675,6 @@ module.exports = router;`;
             </CardContent>
           </Card>
 
-          {/* Generated Code Tabs */}
           <Tabs defaultValue="main" className="w-full">
             <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="main">Main Page</TabsTrigger>
