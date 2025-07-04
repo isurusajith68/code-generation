@@ -121,11 +121,6 @@ const CodeGenerationPage = () => {
 
     const excludeColumns = [
       "id",
-      "property_id",
-      "createdate",
-      "created_by",
-      "updatedate",
-      "updated_by",
     ];
 
     const newFields = tableColumns
@@ -554,11 +549,10 @@ const CodeGenerationPage = () => {
     const insertValues = fields.map((f) => f.name).join(", ");
 
     return {
-      insertFields: `${insertFields}, property_id, createdate, created_by`,
-      insertPlaceholders: `${insertPlaceholders}, $${fields.length + 1}, $${
-        fields.length + 2
-      }, $${fields.length + 3}`,
-      insertValues: `${insertValues}, propertyId, new Date(), req.userId`,
+      insertFields: `${insertFields}`,
+      //$1, $2, $3, $4, $5, $6, $7, $7 
+      insertPlaceholders: `${insertPlaceholders}`,
+      insertValues: `${insertValues}`,
       updateFields: fields.map((f, i) => `${f.name} = $${i + 1}`).join(", "),
       updatePlaceholders: fields.map((f) => f.name).join(", "),
     };
@@ -1101,7 +1095,7 @@ export const useDelete${entityUpper}Mutation = () => {
   });
 };`;
 
-    const backendRoutes = `const express = require('express');
+    const backendRoutes = `import express from "express";
 const ${entityUpper} = express.Router();
 
 // Add ${entityUpper}
@@ -1140,8 +1134,8 @@ ${entityUpper}.put("/update-${entityLower}", async (req, res) => {
     const updated${entityUpper} = await pool.query(
       \`UPDATE ${tableName} SET ${backendFields.updateFields} WHERE id = ${
       fields.length + 1
-    } AND property_id = ${fields.length + 2} RETURNING *\`,
-      [${backendFields.updatePlaceholders}, item_id, propertyId]
+    }  RETURNING *\`,
+      [${backendFields.updatePlaceholders}, item_id]
     );
 
     if (updated${entityUpper}.rows.length === 0) {
@@ -1172,8 +1166,7 @@ ${entityUpper}.delete("/delete-${entityLower}/:id", async (req, res) => {
     const ${entityLower}Id = req.params.id;
 
     const deleted${entityUpper} = await pool.query(
-      \`DELETE FROM ${tableName} WHERE id = $1 AND property_id = $2 RETURNING *\`,
-      [${entityLower}Id, propertyId]
+      \`DELETE FROM ${tableName} RETURNING *\`
     );
 
     if (deleted${entityUpper}.rows.length === 0) {
@@ -1203,12 +1196,12 @@ ${entityUpper}.get("/select-all-${entityLower}", async (req, res) => {
     const propertyId = req.propertyId;
     const { page = 1, limit = 10, all${entityUpper} = false } = req.query;
 
-    let query = \`SELECT * FROM ${tableName} WHERE property_id = $1\`;
-    let queryParams = [propertyId];
+    let query = \`SELECT * FROM ${tableName}\`;
+    let queryParams = [];
 
     if (!all${entityUpper}) {
       const offset = (page - 1) * limit;
-      query += \` ORDER BY createdate DESC LIMIT $2 OFFSET $3\`;
+      query += \` ORDER BY createdate DESC LIMIT $1 OFFSET $2\`;
       queryParams.push(limit, offset);
     }
 
@@ -1216,8 +1209,7 @@ ${entityUpper}.get("/select-all-${entityLower}", async (req, res) => {
 
     // Get total count for pagination
     const countResult = await pool.query(
-      \`SELECT COUNT(*) FROM ${tableName} WHERE property_id = $1\`,
-      [propertyId]
+      \`SELECT COUNT(*) FROM ${tableName}\`
     );
 
     res.status(200).json({
