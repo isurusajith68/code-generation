@@ -454,7 +454,7 @@ const Add${parentEntityUpper} = ({
                   type="button"
                   onClick={addDetailItem}
                   size="sm"
-                  className="ml-2"
+                  className="ml-2 bg-primary hover:bg-primary-hover"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add ${childEntityUpper}
@@ -463,7 +463,7 @@ const Add${parentEntityUpper} = ({
             </CardHeader>
             <CardContent>
               <Table>
-                <TableHeader className="bg-gray-500">
+                <TableHeader className="bg-primary text-center border text-white hover:bg-primary-hover hover:text-white">
                   <TableRow>
                     ${generateTableHeaders(childTable.fields)}
                     <TableHead>Actions</TableHead>
@@ -680,7 +680,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus } from "lucide-react";
-import { useUpdate${parentEntityUpper} } from "../service/mutation";
+import { useUpdate${parentEntityUpper}Mutation } from "../service/mutation";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useGet${parentEntityUpper}ById } from "../service/query";
 ${
   parentTable.fields.some((f) => f.type === "select")
@@ -726,7 +727,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
   setOpen,
 }) => {
   const { data: ${parentEntityLower}Data, isLoading } = useGet${parentEntityUpper}ById(${parentEntityLower}Id);
-  const { mutate: update${parentEntityUpper}, isPending } = useUpdate${parentEntityUpper}();
+  const { mutate: update${parentEntityUpper}, isPending } = useUpdate${parentEntityUpper}Mutation();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -825,7 +826,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>${childEntityUpper} Items</CardTitle>
-              <Button type="button" onClick={addNewItem} size="sm">
+              <Button type="button" onClick={addNewItem} size="sm" className="bg-primary hover:bg-primary-hover">
                 <Plus className="h-4 w-4 mr-2" />
                 Add ${childEntityUpper}
               </Button>
@@ -833,7 +834,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
             <CardContent>
               {fields.length > 0 ? (
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-primary text-center border text-white hover:bg-primary-hover hover:text-white">
                     <TableRow>
                       ${generateTableHeaders(childTable.fields)}
                       <TableHead>Actions</TableHead>
@@ -1146,14 +1147,14 @@ const List${parentEntityUpper} = ({
             Manage your ${parentEntityLower} records and associated ${childEntityLower} items
           </CardDescription>
         </div>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => setOpen(true)} className="bg-primary hover:bg-primary-hover">
           <Package className="w-4 h-4 mr-2" />
           Add ${parentEntityUpper}
         </Button>
       </CardHeader>
       <CardContent>
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-primary text-center border text-white hover:bg-primary-hover hover:text-white">
             <TableRow>
               ${generateTableHeaders(parentTable.fields)}
               <TableHead>Actions</TableHead>
@@ -1364,7 +1365,7 @@ const ${parentEntityUpper}Details = ({ parentId, setOpen }: ${parentEntityUpper}
         <CardContent>
           {${parentEntityLower}Data.${childEntityLower}Items && ${parentEntityLower}Data.${childEntityLower}Items.length > 0 ? (
             <Table>
-              <TableHeader className="bg-gray-500">
+              <TableHeader className="bg-primary text-center border text-white hover:bg-primary-hover hover:text-white">
                 <TableRow>
                   ${generateTableHeaders(childTable.fields)}
                 </TableRow>

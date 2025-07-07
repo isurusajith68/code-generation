@@ -3,7 +3,7 @@ import { Outlet } from "react-router-dom";
 const Layout = () => {
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="w-64 bg-gray-800 text-white h-full fixed">
+      <aside className="w-56 bg-gray-800 text-white h-full fixed">
         <div className="p-4">
           <h1 className="text-xl font-bold">Code Generation</h1>
           <nav className="mt-4">
@@ -25,7 +25,7 @@ const Layout = () => {
           </nav>
         </div>
       </aside>
-      <main className="ml-64 p-4 w-full">
+      <main className="ml-56 p-4 w-full">
         <Outlet />
       </main>
     </div>
