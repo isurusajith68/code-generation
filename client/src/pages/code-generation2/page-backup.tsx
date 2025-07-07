@@ -1161,6 +1161,7 @@ module.exports = router;`;
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Project Configuration */}
           <ProjectConfiguration
             projectName={projectName}
             setProjectName={setProjectName}
@@ -1170,6 +1171,7 @@ module.exports = router;`;
             setBackendRoutePath={setBackendRoutePath}
           />
 
+          {/* Database Integration */}
           <DatabaseIntegration
             parentTable={parentTable}
             setParentTable={setParentTable}
@@ -1177,6 +1179,7 @@ module.exports = router;`;
             setChildTable={setChildTable}
           />
 
+          {/* Table Configuration */}
           <TableConfiguration
             parentTable={parentTable}
             setParentTable={setParentTable}
@@ -1184,6 +1187,7 @@ module.exports = router;`;
             setChildTable={setChildTable}
           />
 
+          {/* Generate Code Button */}
           <div className="flex justify-center">
             <Button onClick={generateCode} size="lg" className="w-full">
               <Play className="w-5 h-5 mr-2" />
@@ -1193,7 +1197,7 @@ module.exports = router;`;
         </CardContent>
       </Card>
 
-    
+      {/* Code Display */}
       {showGenerated && (
         <CodeDisplay
           generatedCode={generatedCode}

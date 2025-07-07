@@ -14,6 +14,18 @@ interface GeneratedCode {
   queries: string;
   mutations: string;
   backendRoutes: string;
+  routingHelper?: {
+    routeImport: string;
+    routeElement: string;
+    backendRouteImport: string;
+    backendRouteUse: string;
+    libraryImports: string;
+  };
+  exportStatements?: {
+    mainPageExport: string;
+    routeConfigExport: string;
+    backendRouteExport: string;
+  };
 }
 
 interface CodeDisplayProps {
@@ -124,6 +136,48 @@ const CodeDisplay: React.FC<CodeDisplayProps> = ({
     },
   ];
 
+  // Add routing helpers if they exist
+  if (generatedCode.routingHelper) {
+    codeFiles.push({
+      id: "routing",
+      title: "Routing Helpers",
+      filename: "routing-helpers.txt",
+      content: `// Frontend Route Import
+${generatedCode.routingHelper.routeImport}
+
+// Frontend Route Element
+${generatedCode.routingHelper.routeElement}
+
+// Backend Route Import
+${generatedCode.routingHelper.backendRouteImport}
+
+// Backend Route Usage
+${generatedCode.routingHelper.backendRouteUse}
+
+// Required Library Imports
+${generatedCode.routingHelper.libraryImports}`,
+      icon: <Code className="w-4 h-4" />,
+    });
+  }
+
+  // Add export statements if they exist
+  if (generatedCode.exportStatements) {
+    codeFiles.push({
+      id: "exports",
+      title: "Export Statements",
+      filename: "export-statements.txt",
+      content: `// Main Page Export
+${generatedCode.exportStatements.mainPageExport}
+
+// Route Configuration Export
+${generatedCode.exportStatements.routeConfigExport}
+
+// Backend Route Export
+${generatedCode.exportStatements.backendRouteExport}`,
+      icon: <Code className="w-4 h-4" />,
+    });
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -131,7 +185,7 @@ const CodeDisplay: React.FC<CodeDisplayProps> = ({
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="main" className="w-full">
-          <TabsList className="grid w-full grid-cols-8 mb-4">
+          <TabsList className="grid w-full grid-cols-9 mb-4">
             {codeFiles.map((file) => (
               <TabsTrigger key={file.id} value={file.id} className="text-xs">
                 {file.icon}

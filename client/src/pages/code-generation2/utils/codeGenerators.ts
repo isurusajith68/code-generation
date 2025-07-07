@@ -261,6 +261,7 @@ export const generateBackendFields = (
   parentFields: Field[],
   childFields: Field[]
 ) => {
+  // Parent fields
   const parentSelectFields = parentFields.map((f) => f.name).join(", ");
   const parentInsertFields = parentFields.map((f) => f.name).join(", ");
   const parentInsertPlaceholders = parentFields
@@ -268,6 +269,7 @@ export const generateBackendFields = (
     .join(", ");
   const parentInsertValues = parentFields.map((f) => f.name).join(", ");
 
+  // Child fields
   const childSelectFields = childFields.map((f) => f.name).join(", ");
   const childInsertFields = childFields.map((f) => f.name).join(", ");
   const childInsertPlaceholders = childFields

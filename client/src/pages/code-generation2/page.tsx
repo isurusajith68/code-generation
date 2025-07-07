@@ -44,6 +44,12 @@ interface GeneratedCode {
   queries: string;
   mutations: string;
   backendRoutes: string;
+  routingHelper?: {
+    routeImport: string;
+    routeElement: string;
+    backendRouteImport: string;
+    backendRouteUse: string;
+  };
 }
 
 const MasterDetailCodeGenerationPage = () => {
@@ -165,6 +171,11 @@ const MasterDetailCodeGenerationPage = () => {
       backendFields
     );
 
+    const routingHelper = generateRoutingHelper(
+      parentEntityUpper,
+      parentEntityLower
+    );
+
     setGeneratedCode({
       mainComponent,
       addComponent,
@@ -174,6 +185,7 @@ const MasterDetailCodeGenerationPage = () => {
       queries,
       mutations,
       backendRoutes,
+      routingHelper,
     });
     setShowGenerated(true);
   };
@@ -632,6 +644,7 @@ const Add${parentEntityUpper} = ({
 export default Add${parentEntityUpper};`;
   };
 
+  // Helper function for generating edit component
   const generateEditComponent = (
     parentTable: TableInfo,
     childTable: TableInfo,
@@ -666,13 +679,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Trash2, Plus } from "lucide-react";
-import { useUpdate${parentEntityUpper}Mutation } from "../service/mutation";
+import { useUpdate${parentEntityUpper} } from "../service/mutation";
 import { useGet${parentEntityUpper}ById } from "../service/query";
 ${
-  parentTable.fields.some((f) => f.type === "select") ||
-  childTable.fields.some((f) => f.type === "select")
+  parentTable.fields.some((f) => f.type === "select")
     ? 'import {\n  Select,\n  SelectContent,\n  SelectItem,\n  SelectTrigger,\n  SelectValue,\n} from "@/components/ui/select";'
     : ""
 }
@@ -715,7 +726,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
   setOpen,
 }) => {
   const { data: ${parentEntityLower}Data, isLoading } = useGet${parentEntityUpper}ById(${parentEntityLower}Id);
-  const { mutate: update${parentEntityUpper}, isPending } = useUpdate${parentEntityUpper}Mutation();
+  const { mutate: update${parentEntityUpper}, isPending } = useUpdate${parentEntityUpper}();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -743,6 +754,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
   // Load data when component mounts or ${parentEntityLower}Id changes
   useEffect(() => {
     if (${parentEntityLower}Data) {
+      // Set form values from loaded data
       form.reset({
         ${parentTable.fields
           .map(
@@ -821,7 +833,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
             <CardContent>
               {fields.length > 0 ? (
                 <Table>
-                  <TableHeader className="bg-gray-500">
+                  <TableHeader>
                     <TableRow>
                       ${generateTableHeaders(childTable.fields)}
                       <TableHead>Actions</TableHead>
@@ -885,46 +897,6 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
                                     )}
                                 </SelectContent>
                               </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
-                            } else if (f.type === "radio") {
-                              const options = f.radioOptions
-                                ? f.radioOptions
-                                    .split(",")
-                                    .map((opt) => opt.trim())
-                                : [];
-                              return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${
-                                f.name
-                              }\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <RadioGroup
-                                  onValueChange={field.onChange}
-                                  value={field.value}
-                                  className="flex flex-row space-x-4"
-                                >
-                                  ${options
-                                    .map(
-                                      (option) =>
-                                        `<div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="${option}" id="${option.toLowerCase()}-\${index}" />
-                                    <label htmlFor="${option.toLowerCase()}-\${index}" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                      ${option}
-                                    </label>
-                                  </div>`
-                                    )
-                                    .join(
-                                      "\n                                  "
-                                    )}
-                                </RadioGroup>
-                              </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -1036,6 +1008,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
 export default Edit${parentEntityUpper};`;
   };
 
+  // Helper function for generating list component
   const generateListComponent = (
     parentTable: TableInfo,
     parentEntityUpper: string,
@@ -1180,7 +1153,7 @@ const List${parentEntityUpper} = ({
       </CardHeader>
       <CardContent>
         <Table>
-          <TableHeader className="bg-gray-500">
+          <TableHeader>
             <TableRow>
               ${generateTableHeaders(parentTable.fields)}
               <TableHead>Actions</TableHead>
@@ -1285,6 +1258,7 @@ const List${parentEntityUpper} = ({
 export default List${parentEntityUpper};`;
   };
 
+  // Helper function for generating details component
   const generateDetailsComponent = (
     parentTable: TableInfo,
     childTable: TableInfo,
@@ -1441,6 +1415,7 @@ import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+// Get all ${parentEntityLower}s with pagination
 export const useGet${parentEntityUpper} = (page: number = 1, limit: number = 10) => {
   return useQuery({
     queryKey: ["${parentEntityLower}s", page, limit],
@@ -1471,6 +1446,7 @@ export const useGet${parentEntityUpper}ById = (id: number) => {
 };`;
   };
 
+  // Helper function for generating mutations
   const generateMutations = (
     parentEntityUpper: string,
     parentEntityLower: string,
@@ -1535,6 +1511,7 @@ export const useDelete${parentEntityUpper}Mutation = () => {
 };`;
   };
 
+  // Helper function for generating backend routes
   const generateBackendRoutes = (
     parentTable: TableInfo,
     childTable: TableInfo,
@@ -1667,65 +1644,32 @@ ${parentEntityUpper}.post('/create', async (req, res) => {
 
 // PUT /${parentEntityLower}s/update/:id - Update ${parentEntityLower}
 ${parentEntityUpper}.put('/update/:id', async (req, res) => {
-  const pool = req.tenantPool;
-  const client = await pool.connect();
-  
   try {
-    await client.query('BEGIN');
-
+    const pool = req.tenantPool;
     const { id } = req.params;
-    const { ${childEntityLower}Items, ...parentData } = req.body;
+    const updates = req.body;
 
-    // Update parent entity (exclude child items)
-    const parentFields = Object.keys(parentData);
-    const setClause = parentFields
+    const setClause = Object.keys(updates)
       .map((key, index) => \`\${key} = $\${index + 2}\`)
       .join(', ');
     
-    const parentValues = [id, ...Object.values(parentData)];
+    const values = [id, ...Object.values(updates)];
 
-    const parentResult = await client.query(
+    const result = await pool.query(
       \`UPDATE ${
         parentTable.tableName
       } SET \${setClause} WHERE id = $1 RETURNING *\`,
-      parentValues
+      values
     );
 
-    if (parentResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: '${parentEntityUpper} not found' });
     }
 
-    // Update child items if provided
-    if (${childEntityLower}Items && Array.isArray(${childEntityLower}Items)) {
-      // Delete existing child items
-      await client.query('DELETE FROM ${childTable.tableName} WHERE ${
-        childTable.foreignKey
-      } = $1', [id]);
-
-      // Insert updated child items
-      for (const item of ${childEntityLower}Items) {
-        await client.query(
-          'INSERT INTO ${childTable.tableName} (${
-        backendFields.child.insertFields
-      }, ${childTable.foreignKey}) VALUES (${
-        backendFields.child.insertPlaceholders
-      }, $${backendFields.child.insertPlaceholders.split(", ").length + 1})',
-          [${childTable.fields
-            .map((field: any) => `item.${field.name}`)
-            .join(", ")}, id]
-        );
-      }
-    }
-
-    await client.query('COMMIT');
-    res.json(parentResult.rows[0]);
+    res.json(result.rows[0]);
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Error updating ${parentEntityLower}:', error);
     res.status(500).json({ error: 'Internal server error' });
-  } finally {
-    client.release();
   }
 });
 
@@ -1768,9 +1712,19 @@ ${parentEntityUpper}.delete('/delete/:id', async (req, res) => {
 export default ${parentEntityUpper};`;
   };
 
-  // Function to replace files using the master-detail API
+  const generateRoutingHelper = (
+    parentEntityUpper: string,
+    parentEntityLower: string
+  ) => {
+    return {
+      routeImport: `import ${parentEntityUpper}Page from "./pages/${parentEntityLower}/${parentEntityLower}-page";`,
+      routeElement: `<Route path="${parentEntityUpper}Page" element={<${parentEntityUpper}Page />} />`,
+      backendRouteImport: `import ${parentEntityUpper}Routes from "./routes/${parentEntityLower}-routes.js";`,
+      backendRouteUse: `app.use("/api/v1/${parentEntityLower}s", requireAuth, tenantMiddleware, ${parentEntityUpper}Routes);`,
+    };
+  };
+
   const replaceFilesMasterDetail = async () => {
-    // Validation
     if (!parentTable.entityName || !childTable.entityName) {
       toast.error(
         "Please provide entity names for both parent and child tables"
@@ -1869,6 +1823,29 @@ export default ${parentEntityUpper};`;
           type: "backend",
         },
       ];
+
+      // Add routing helpers if they exist
+      if (generatedCode.routingHelper) {
+        files.push({
+          filename: `routing-helpers.txt`,
+          path: frontendEntityPath,
+          content: `// Frontend Route Import
+${generatedCode.routingHelper.routeImport}
+
+// Frontend Route Element  
+${generatedCode.routingHelper.routeElement}
+
+// Backend Route Import
+${generatedCode.routingHelper.backendRouteImport}
+
+// Backend Route Usage
+${generatedCode.routingHelper.backendRouteUse}
+
+// Required Library Imports
+${generatedCode.routingHelper.libraryImports}`,
+          type: "frontend",
+        });
+      }
 
       const response = await fetch(
         `${apiUrl}/code-generation/replace-files-master-detail`,
