@@ -60,6 +60,7 @@ const MasterDetailCodeGenerationPage = () => {
   const [frontendPath, setFrontendPath] = useState("");
   const [backendRoutePath, setBackendRoutePath] = useState("");
 
+  // Parent table state
   const [parentTable, setParentTable] = useState<TableInfo>({
     tableName: "",
     entityName: "",
@@ -617,7 +618,61 @@ const MasterDetailCodeGenerationPage = () => {
       .join("\n                            ");
   };
 
+  const generateBackendFields = () => {
+    const parentInsertFields = parentTable.fields.map((f) => f.name).join(", ");
+    const parentInsertPlaceholders = parentTable.fields
+      .map((_, i) => `$${i + 1}`)
+      .join(", ");
+    const parentInsertValues = parentTable.fields.map((f) => f.name).join(", ");
+
+    const childInsertFields = childTable.fields.map((f) => f.name).join(", ");
+    const childInsertPlaceholders = childTable.fields
+      .map((_, i) => `$${i + 1}`)
+      .join(", ");
+    const childInsertValues = childTable.fields.map((f) => f.name).join(", ");
+
+    const childUpdateFields = childTable.fields
+      .map((f, i) => `${f.name} = $${i + 1}`)
+      .join(", ");
+    const childUpdatePlaceholders = childTable.fields
+      .map((f) => f.name)
+      .join(", ");
+
+    return {
+      parent: {
+        insertFields: parentInsertFields,
+        insertPlaceholders: parentInsertPlaceholders,
+        insertValues: parentInsertValues,
+      },
+      child: {
+        insertFields: childInsertFields,
+        insertPlaceholders: childInsertPlaceholders,
+        insertValues: childInsertValues,
+        updateFields: childUpdateFields,
+        updatePlaceholders: childUpdatePlaceholders,
+      },
+    };
+  };
+
   const generateCode = () => {
+    // Validation
+    if (!parentTable.entityName || !childTable.entityName) {
+      toast.error(
+        "Please provide entity names for both parent and child tables"
+      );
+      return;
+    }
+
+    if (parentTable.fields.length === 0 || childTable.fields.length === 0) {
+      toast.error("Please add fields for both parent and child tables");
+      return;
+    }
+
+    if (!childTable.foreignKey) {
+      toast.error("Please specify the foreign key column");
+      return;
+    }
+
     const parentEntityLower = parentTable.entityName.toLowerCase();
     const parentEntityUpper =
       parentTable.entityName.charAt(0).toUpperCase() +
@@ -626,6 +681,8 @@ const MasterDetailCodeGenerationPage = () => {
     const childEntityUpper =
       childTable.entityName.charAt(0).toUpperCase() +
       childTable.entityName.slice(1);
+
+    const backendFields = generateBackendFields();
 
     const mainComponent = `"use client";
 
@@ -639,7 +696,7 @@ import {
   DialogHeader,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { PackagePlus } from "lucide-react";
+import { PackagePlus, Eye } from "lucide-react";
 
 const ${parentEntityUpper}Page = () => {
   const [open, setOpen] = React.useState(false);
@@ -868,8 +925,8 @@ const Add${parentEntityUpper} = ({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {fields.map((field, index) => (
-                      <TableRow key={field.id}>
+                    {fields.map((fieldItem, index) => (
+                      <TableRow key={fieldItem.id}>
                         <TableCell className="font-medium">{index + 1}</TableCell>
                         ${childTable.fields
                           .map((f, fieldIndex) => {
@@ -1859,35 +1916,31 @@ ${parentEntityUpper}.post("/add-${parentEntityLower}-with-details", async (req, 
     await client.query('BEGIN');
     
     const { ${parentEntityLower}, ${childEntityLower}Items } = req.body;
-    const { ${parentTable.fields
-      .map((f) => f.name)
-      .join(", ")} } = ${parentEntityLower};
+    const { ${backendFields.parent.insertValues} } = ${parentEntityLower};
 
     // Insert parent record
     const parentResult = await client.query(
-      \`INSERT INTO ${parentTable.tableName} (${parentTable.fields
-      .map((f) => f.name)
-      .join(", ")})
-       VALUES (${parentTable.fields
-         .map((_, i) => `${i + 1}`)
-         .join(", ")}) RETURNING *\`,
-      [${parentTable.fields.map((f) => f.name).join(", ")}]
+      \`INSERT INTO ${parentTable.tableName} (${
+      backendFields.parent.insertFields
+    })
+       VALUES (${backendFields.parent.insertPlaceholders}) RETURNING *\`,
+      [${backendFields.parent.insertValues}]
     );
 
     const parentId = parentResult.rows[0].id;
 
     // Insert child records
-    for (const item of ${childEntityLower}Items) {
-      const { ${childTable.fields.map((f) => f.name).join(", ")} } = item;
+    for (const items of ${childEntityLower}Items) {
+      const { ${backendFields.child.insertValues} } = items;
       
       await client.query(
-        \`INSERT INTO ${childTable.tableName} (${childTable.fields
-      .map((f) => f.name)
-      .join(", ")}, ${childTable.foreignKey})
-         VALUES (${childTable.fields.map((_, i) => `${i + 1}`).join(", ")}, ${
+        \`INSERT INTO ${childTable.tableName} (${
+      backendFields.child.insertFields
+    }, ${childTable.foreignKey})
+         VALUES (${backendFields.child.insertPlaceholders}, $${
       childTable.fields.length + 1
     })\`,
-        [${childTable.fields.map((f) => f.name).join(", ")}, parentId]
+        [${backendFields.child.insertValues}, parentId]
       );
     }
 
@@ -1918,7 +1971,7 @@ ${parentEntityUpper}.get("/select-all-${parentEntityLower}", async (req, res) =>
 
     if (!all${parentEntityUpper}) {
       const offset = (page - 1) * limit;
-      query += \` ORDER BY createdate DESC LIMIT $1 OFFSET $2\`;
+      query += \` ORDER BY id DESC LIMIT $1 OFFSET $2\`;
       queryParams.push(limit, offset);
     }
 
@@ -2028,20 +2081,18 @@ const ${childEntityUpper}Router = express.Router();
 ${childEntityUpper}Router.post("/add-${childEntityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
-    const { ${childTable.fields.map((f) => f.name).join(", ")}, ${
+    const { ${backendFields.child.insertValues}, ${
       childTable.foreignKey
     } } = req.body;
 
     const new${childEntityUpper} = await pool.query(
-      \`INSERT INTO ${childTable.tableName} (${childTable.fields
-      .map((f) => f.name)
-      .join(", ")}, ${childTable.foreignKey})
-       VALUES (${childTable.fields.map((_, i) => `${i + 1}`).join(", ")}, ${
+      \`INSERT INTO ${childTable.tableName} (${
+      backendFields.child.insertFields
+    }, ${childTable.foreignKey})
+       VALUES (${backendFields.child.insertPlaceholders}, $${
       childTable.fields.length + 1
     }) RETURNING *\`,
-      [${childTable.fields.map((f) => f.name).join(", ")}, ${
-      childTable.foreignKey
-    }]
+      [${backendFields.child.insertValues}, ${childTable.foreignKey}]
     );
 
     res.status(201).json({
@@ -2066,7 +2117,7 @@ ${childEntityUpper}Router.get("/get-by-parent/:parentId", async (req, res) => {
     const result = await pool.query(
       \`SELECT * FROM ${childTable.tableName} WHERE ${
       childTable.foreignKey
-    } = $1 ORDER BY createdate DESC\`,
+    } = $1 ORDER BY id DESC\`,
       [parentId]
     );
 
@@ -2087,13 +2138,13 @@ ${childEntityUpper}Router.get("/get-by-parent/:parentId", async (req, res) => {
 ${childEntityUpper}Router.put("/update-${childEntityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
-    const { ${childTable.fields.map((f) => f.name).join(", ")}, id } = req.body;
+    const { ${backendFields.child.insertValues}, id } = req.body;
 
     const updated${childEntityUpper} = await pool.query(
-      \`UPDATE ${childTable.tableName} SET ${childTable.fields
-      .map((f, i) => `${f.name} = ${i + 1}`)
-      .join(", ")} WHERE id = ${childTable.fields.length + 1} RETURNING *\`,
-      [${childTable.fields.map((f) => f.name).join(", ")}, id]
+      \`UPDATE ${childTable.tableName} SET ${
+      backendFields.child.updateFields
+    } WHERE id = $${childTable.fields.length + 1} RETURNING *\`,
+      [${backendFields.child.updatePlaceholders}, id]
     );
 
     if (updated${childEntityUpper}.rows.length === 0) {
