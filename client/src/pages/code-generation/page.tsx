@@ -23,6 +23,8 @@ interface Field {
   required: boolean;
   dbType: string;
   selectOptions: string;
+  radioOptions: string;
+  defaultValue: string;
 }
 
 interface GeneratedCode {
@@ -63,7 +65,6 @@ const CodeGenerationPage = () => {
   const [isReplacing, setIsReplacing] = useState(false);
   const [showGenerated, setShowGenerated] = useState(false);
 
-
   const [selectedSchema, setSelectedSchema] = useState("public");
   const [selectedTable, setSelectedTable] = useState("");
   const [tables, setTables] = useState<DatabaseTable[]>([]);
@@ -91,7 +92,6 @@ const CodeGenerationPage = () => {
     }
   };
 
-
   const loadTableStructure = async (tableName: string, schema: string) => {
     if (!tableName || !schema) return;
 
@@ -112,29 +112,25 @@ const CodeGenerationPage = () => {
     }
   };
 
-  
   const populateFieldsFromTable = () => {
     if (tableColumns.length === 0) {
       toast.error("No table columns found");
       return;
     }
 
-    const excludeColumns = [
-      "id",
-      "property_id",
-      "createdate",
-      "created_by",
-      "updatedate",
-      "updated_by",
-    ];
+    const excludeColumns = ["id"];
 
     const newFields = tableColumns
       .filter((col) => !excludeColumns.includes(col.column_name.toLowerCase()))
       .map((col) => {
-       
         let fieldType = "text";
 
-        if (col.data_type.includes("int") || col.data_type.includes("serial")) {
+        if (col.data_type.includes("boolean")) {
+          fieldType = "boolean";
+        } else if (
+          col.data_type.includes("int") ||
+          col.data_type.includes("serial")
+        ) {
           fieldType = "number";
         } else if (
           col.data_type.includes("text") ||
@@ -152,9 +148,14 @@ const CodeGenerationPage = () => {
           fieldType = "password";
         } else if (col.column_name.toLowerCase().endsWith("_id")) {
           fieldType = "select";
+        } else if (
+          col.column_name.toLowerCase().includes("status") ||
+          col.column_name.toLowerCase().includes("type") ||
+          col.column_name.toLowerCase().includes("category")
+        ) {
+          fieldType = "radio";
         }
 
-     
         const label = col.column_name
           .replace(/_/g, " ")
           .replace(/\b\w/g, (l) => l.toUpperCase());
@@ -168,21 +169,22 @@ const CodeGenerationPage = () => {
           dbType: col.data_type.toUpperCase(),
           selectOptions:
             fieldType === "select" ? "Option1, Option2, Option3" : "",
+          radioOptions: fieldType === "radio" ? "Active, Inactive" : "",
+          defaultValue: fieldType === "boolean" ? "false" : "",
         };
       });
 
     setFields(newFields);
 
- 
     if (selectedTable && !tableName) {
       setTableName(selectedTable);
     }
     if (selectedTable && !entityName) {
       const cleanEntityName = selectedTable
-        .replace(/^(operation_|core_|seed_)/, "") 
+        .replace(/^(operation_|core_|seed_)/, "")
         .replace(/_/g, " ")
         .replace(/\b\w/g, (l) => l.toUpperCase())
-        .replace(/\s/g, ""); 
+        .replace(/\s/g, "");
       setEntityName(cleanEntityName);
     }
 
@@ -294,6 +296,8 @@ const CodeGenerationPage = () => {
     { value: "textarea", label: "Textarea" },
     { value: "number", label: "Number Input" },
     { value: "select", label: "Select Dropdown" },
+    { value: "radio", label: "Radio Button" },
+    { value: "boolean", label: "Boolean Switch" },
     { value: "date", label: "Date Input" },
     { value: "email", label: "Email Input" },
     { value: "password", label: "Password Input" },
@@ -310,6 +314,8 @@ const CodeGenerationPage = () => {
         required: false,
         dbType: "VARCHAR(255)",
         selectOptions: "",
+        radioOptions: "",
+        defaultValue: "",
       },
     ]);
   };
@@ -349,6 +355,16 @@ const CodeGenerationPage = () => {
                 ? '.min(1, "Selection is required")'
                 : ".optional()"
             }`;
+            break;
+          case "radio":
+            zodType = `z.string()${
+              field.required
+                ? '.min(1, "Selection is required")'
+                : ".optional()"
+            }`;
+            break;
+          case "boolean":
+            zodType = `z.boolean()${field.required ? "" : ".optional()"}`;
             break;
           default:
             zodType = `z.string()${
@@ -404,6 +420,67 @@ const CodeGenerationPage = () => {
                     </Select>
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />`;
+          case "radio":
+            return `
+            <FormField
+              control={form.control}
+              name="${fieldName}"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>
+                    ${fieldLabel} ${
+              isRequired ? '<span className="text-red-700">*</span>' : ""
+            }
+                  </FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      className="flex flex-col space-y-1"
+                    >
+                      ${field.radioOptions
+                        .split(",")
+                        .map(
+                          (option) =>
+                            `<FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="${option.trim()}" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          ${option.trim()}
+                        </FormLabel>
+                      </FormItem>`
+                        )
+                        .join("\n                      ")}
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />`;
+          case "boolean":
+            return `
+            <FormField
+              control={form.control}
+              name="${fieldName}"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      ${fieldLabel} ${
+              isRequired ? '<span className="text-red-700">*</span>' : ""
+            }
+                    </FormLabel>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />`;
@@ -490,6 +567,16 @@ const CodeGenerationPage = () => {
       .map((field) => {
         if (field.type === "select") {
           return `<TableCell className="text-center">{/* Add select display logic */}</TableCell>`;
+        } else if (field.type === "boolean") {
+          return `<TableCell className="text-center">
+                              <Badge variant={item.${field.name} ? "default" : "secondary"}>
+                                {item.${field.name} ? "Yes" : "No"}
+                              </Badge>
+                            </TableCell>`;
+        } else if (field.type === "radio") {
+          return `<TableCell className="text-center">
+                              <Badge variant="outline">{item.${field.name}}</Badge>
+                            </TableCell>`;
         }
         return `<TableCell className="text-center">{item.${field.name}}</TableCell>`;
       })
@@ -528,6 +615,37 @@ const CodeGenerationPage = () => {
                     </SelectContent>
                   </Select>
                 </div>`;
+        } else if (field.type === "boolean") {
+          return `                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    ${field.label}
+                  </label>
+                  <Switch
+                    checked={updated${fieldName}}
+                    onCheckedChange={setUpdated${fieldName}}
+                  />
+                </div>`;
+        } else if (field.type === "radio") {
+          return `                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ${field.label}
+                  </label>
+                  <RadioGroup
+                    value={updated${fieldName}}
+                    onValueChange={setUpdated${fieldName}}
+                  >
+                    ${field.radioOptions
+                      .split(",")
+                      .map(
+                        (option) =>
+                          `<div className="flex items-center space-x-2">
+                      <RadioGroupItem value="${option.trim()}" id="${option.trim()}" />
+                      <Label htmlFor="${option.trim()}">${option.trim()}</Label>
+                    </div>`
+                      )
+                      .join("\n                    ")}
+                  </RadioGroup>
+                </div>`;
         } else {
           return `                <div>
                   <label className="block text-sm font-medium text-gray-700">
@@ -554,11 +672,9 @@ const CodeGenerationPage = () => {
     const insertValues = fields.map((f) => f.name).join(", ");
 
     return {
-      insertFields: `${insertFields}, property_id, createdate, created_by`,
-      insertPlaceholders: `${insertPlaceholders}, $${fields.length + 1}, $${
-        fields.length + 2
-      }, $${fields.length + 3}`,
-      insertValues: `${insertValues}, propertyId, new Date(), req.userId`,
+      insertFields: `${insertFields}`,
+      insertPlaceholders: `${insertPlaceholders}`,
+      insertValues: `${insertValues}`,
       updateFields: fields.map((f, i) => `${f.name} = $${i + 1}`).join(", "),
       updatePlaceholders: fields.map((f) => f.name).join(", "),
     };
@@ -629,6 +745,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -651,6 +769,9 @@ const Add${entityUpper} = ({
         .map((f) => {
           if (f.type === "number") return `${f.name}: 0`;
           if (f.type === "select") return `${f.name}: undefined`;
+          if (f.type === "boolean")
+            return `${f.name}: ${f.defaultValue === "true"}`;
+          if (f.type === "radio") return `${f.name}: ""`;
           return `${f.name}: ""`;
         })
         .join(",\n      ")}
@@ -739,6 +860,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -786,7 +910,7 @@ const List${entityUpper} = ({ setOpen }) => {
           f.name.charAt(0).toUpperCase() + f.name.slice(1)
         }, setUpdated${
           f.name.charAt(0).toUpperCase() + f.name.slice(1)
-        }] = useState("");`
+        }] = useState(${f.type === "boolean" ? "false" : '""'});`
     )
     .join("\n  ")}
 
@@ -1019,7 +1143,7 @@ export const useGet${entityUpper} = (
     queryKey: ["${entityLower}", page, limit],
     queryFn: async () => {
       const response = await Axios.get(
-        \`\${apiUrl}${backendRoutePath}/select-all-${entityLower}?page=\${page}&limit=\${limit}&all${entityUpper}=\${all${entityUpper}}\`,
+        \`\${apiUrl}/${entityUpper}/select-all-${entityLower}?page=\${page}&limit=\${limit}&all${entityUpper}=\${all${entityUpper}}\`,
         {
           withCredentials: true,
         }
@@ -1040,7 +1164,7 @@ export const useAdd${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (data: unknown) => {
       const response = await Axios.post(
-        \`\${apiUrl}${backendRoutePath}/add-${entityLower}\`,
+        \`\${apiUrl}/${entityUpper}/add-${entityLower}\`,
         data,
         {
           withCredentials: true,
@@ -1063,7 +1187,7 @@ export const useUpdate${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (data: unknown) => {
       const response = await Axios.put(
-        \`\${apiUrl}${backendRoutePath}/update-${entityLower}\`,
+        \`\${apiUrl}/${entityUpper}/update-${entityLower}\`,
         data,
         {
           withCredentials: true,
@@ -1086,7 +1210,7 @@ export const useDelete${entityUpper}Mutation = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const response = await Axios.delete(
-        \`\${apiUrl}${backendRoutePath}/delete-${entityLower}/\${id}\`,
+        \`\${apiUrl}/${entityUpper}/delete-${entityLower}/\${id}\`,
         {
           withCredentials: true,
         }
@@ -1101,11 +1225,11 @@ export const useDelete${entityUpper}Mutation = () => {
   });
 };`;
 
-    const backendRoutes = `const express = require('express');
-const router = express.Router();
+    const backendRoutes = `import express from "express";
+const ${entityUpper} = express.Router();
 
 // Add ${entityUpper}
-router.post("/add-${entityLower}", async (req, res) => {
+${entityUpper}.post("/add-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
@@ -1131,7 +1255,7 @@ router.post("/add-${entityLower}", async (req, res) => {
 });
 
 // Update ${entityUpper}
-router.put("/update-${entityLower}", async (req, res) => {
+${entityUpper}.put("/update-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
@@ -1140,8 +1264,8 @@ router.put("/update-${entityLower}", async (req, res) => {
     const updated${entityUpper} = await pool.query(
       \`UPDATE ${tableName} SET ${backendFields.updateFields} WHERE id = ${
       fields.length + 1
-    } AND property_id = ${fields.length + 2} RETURNING *\`,
-      [${backendFields.updatePlaceholders}, item_id, propertyId]
+    } RETURNING *\`,
+      [${backendFields.updatePlaceholders}, item_id]
     );
 
     if (updated${entityUpper}.rows.length === 0) {
@@ -1165,15 +1289,15 @@ router.put("/update-${entityLower}", async (req, res) => {
 });
 
 // Delete ${entityUpper}
-router.delete("/delete-${entityLower}/:id", async (req, res) => {
+${entityUpper}.delete("/delete-${entityLower}/:id", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
     const ${entityLower}Id = req.params.id;
 
     const deleted${entityUpper} = await pool.query(
-      \`DELETE FROM ${tableName} WHERE id = $1 AND property_id = $2 RETURNING *\`,
-      [${entityLower}Id, propertyId]
+      \`DELETE FROM ${tableName} WHERE id = $1 RETURNING *\`,
+      [${entityLower}Id]
     );
 
     if (deleted${entityUpper}.rows.length === 0) {
@@ -1197,18 +1321,18 @@ router.delete("/delete-${entityLower}/:id", async (req, res) => {
 });
 
 // Get All ${entityUpper}
-router.get("/select-all-${entityLower}", async (req, res) => {
+${entityUpper}.get("/select-all-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
     const { page = 1, limit = 10, all${entityUpper} = false } = req.query;
 
-    let query = \`SELECT * FROM ${tableName} WHERE property_id = $1\`;
-    let queryParams = [propertyId];
+    let query = \`SELECT * FROM ${tableName}\`;
+    let queryParams = [];
 
     if (!all${entityUpper}) {
       const offset = (page - 1) * limit;
-      query += \` ORDER BY createdate DESC LIMIT $2 OFFSET $3\`;
+      query += \` ORDER BY createdate DESC LIMIT $1 OFFSET $2\`;
       queryParams.push(limit, offset);
     }
 
@@ -1216,8 +1340,7 @@ router.get("/select-all-${entityLower}", async (req, res) => {
 
     // Get total count for pagination
     const countResult = await pool.query(
-      \`SELECT COUNT(*) FROM ${tableName} WHERE property_id = $1\`,
-      [propertyId]
+      \`SELECT COUNT(*) FROM ${tableName}\`
     );
 
     res.status(200).json({
@@ -1235,7 +1358,7 @@ router.get("/select-all-${entityLower}", async (req, res) => {
   }
 });
 
-module.exports = router;`;
+export default ${entityUpper}`;
 
     setGeneratedCode({
       mainComponent,
@@ -1440,7 +1563,6 @@ module.exports = router;`;
             </CardContent>
           </Card>
 
-        
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -1559,6 +1681,41 @@ module.exports = router;`;
                           />
                         </div>
                       )}
+                      {field.type === "radio" && (
+                        <div className="mt-4">
+                          <Label>Radio Options (comma-separated)</Label>
+                          <Input
+                            value={field.radioOptions}
+                            onChange={(e) =>
+                              updateField(
+                                field.id,
+                                "radioOptions",
+                                e.target.value
+                              )
+                            }
+                            placeholder="Active, Inactive"
+                          />
+                        </div>
+                      )}
+                      {field.type === "boolean" && (
+                        <div className="mt-4">
+                          <Label>Default Value</Label>
+                          <Select
+                            value={field.defaultValue}
+                            onValueChange={(value) =>
+                              updateField(field.id, "defaultValue", value)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select default value" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">True</SelectItem>
+                              <SelectItem value="false">False</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </Card>
                   ))}
                 </div>
@@ -1566,7 +1723,6 @@ module.exports = router;`;
             </CardContent>
           </Card>
 
-        
           <div className="flex justify-center">
             <Button
               onClick={generateCode}
@@ -1607,7 +1763,6 @@ module.exports = router;`;
             </div>
           </div>
 
-   
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">File Replacement Paths</CardTitle>
