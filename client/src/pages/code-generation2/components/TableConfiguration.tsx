@@ -29,6 +29,7 @@ interface TableInfo {
   entityName: string;
   fields: Field[];
   foreignKey?: string;
+  primaryKey?: string;
 }
 
 interface TableConfigurationProps {
@@ -235,7 +236,7 @@ const TableConfiguration: React.FC<TableConfigurationProps> = ({
           <CardTitle>Parent Table Configuration</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label>Table Name</Label>
               <Input
@@ -261,6 +262,30 @@ const TableConfiguration: React.FC<TableConfigurationProps> = ({
                   }))
                 }
               />
+            </div>
+            <div>
+              <Label>Primary Key Field</Label>
+              <Select
+                value={parentTable.primaryKey || ""}
+                onValueChange={(value) =>
+                  setParentTable((prev) => ({
+                    ...prev,
+                    primaryKey: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select primary key field" />
+                </SelectTrigger>
+                <SelectContent>
+                  {parentTable.fields.length > 0 &&
+                    parentTable.fields.map((field) => (
+                      <SelectItem key={field.id} value={field.name}>
+                        {field.name} ({field.label})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -295,7 +320,7 @@ const TableConfiguration: React.FC<TableConfigurationProps> = ({
           <CardTitle>Child Table Configuration</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label>Table Name</Label>
               <Input
@@ -321,6 +346,30 @@ const TableConfiguration: React.FC<TableConfigurationProps> = ({
                   }))
                 }
               />
+            </div>
+            <div>
+              <Label>Primary Key Field</Label>
+              <Select
+                value={childTable.primaryKey || ""}
+                onValueChange={(value) =>
+                  setChildTable((prev) => ({
+                    ...prev,
+                    primaryKey: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select primary key field" />
+                </SelectTrigger>
+                <SelectContent>
+                  {childTable.fields.length > 0 &&
+                    childTable.fields.map((field) => (
+                      <SelectItem key={field.id} value={field.name}>
+                        {field.name} ({field.label})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Foreign Key</Label>

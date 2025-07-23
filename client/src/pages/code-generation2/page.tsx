@@ -33,6 +33,7 @@ interface TableInfo {
   entityName: string;
   fields: Field[];
   foreignKey?: string;
+  primaryKey?: string;
 }
 
 interface GeneratedCode {
@@ -49,6 +50,7 @@ interface GeneratedCode {
     routeElement: string;
     backendRouteImport: string;
     backendRouteUse: string;
+    libraryImports: string;
   };
 }
 
@@ -82,6 +84,7 @@ const MasterDetailCodeGenerationPage = () => {
   });
 
   const [showGenerated, setShowGenerated] = useState(false);
+  const [uiMode, setUiMode] = useState<"dialog" | "page">("dialog");
 
   const generateCode = () => {
     if (!parentTable.entityName || !childTable.entityName) {
@@ -101,6 +104,16 @@ const MasterDetailCodeGenerationPage = () => {
       return;
     }
 
+    if (!parentTable.primaryKey) {
+      toast.error("Please select the primary key field for the parent table");
+      return;
+    }
+
+    if (!childTable.primaryKey) {
+      toast.error("Please select the primary key field for the child table");
+      return;
+    }
+
     const parentEntityLower = parentTable.entityName.toLowerCase();
     const parentEntityUpper =
       parentTable.entityName.charAt(0).toUpperCase() +
@@ -117,7 +130,8 @@ const MasterDetailCodeGenerationPage = () => {
 
     const mainComponent = generateMainComponent(
       parentEntityUpper,
-      parentEntityLower
+      parentEntityLower,
+      uiMode
     );
     const addComponent = generateAddComponent(
       parentTable,
@@ -125,7 +139,8 @@ const MasterDetailCodeGenerationPage = () => {
       parentEntityUpper,
       parentEntityLower,
       childEntityUpper,
-      childEntityLower
+      childEntityLower,
+      uiMode
     );
     const editComponent = generateEditComponent(
       parentTable,
@@ -133,13 +148,15 @@ const MasterDetailCodeGenerationPage = () => {
       parentEntityUpper,
       parentEntityLower,
       childEntityUpper,
-      childEntityLower
+      childEntityLower,
+      uiMode
     );
     const listComponent = generateListComponent(
       parentTable,
       parentEntityUpper,
       parentEntityLower,
-      childEntityLower
+      childEntityLower,
+      uiMode
     );
     const detailsComponent = generateDetailsComponent(
       parentTable,
@@ -192,7 +209,8 @@ const MasterDetailCodeGenerationPage = () => {
 
   const generateMainComponent = (
     parentEntityUpper: string,
-    parentEntityLower: string
+    parentEntityLower: string,
+    uiMode: "dialog" | "page"
   ) => {
     return `"use client";
 
@@ -291,7 +309,8 @@ export default ${parentEntityUpper}Page;`;
     parentEntityUpper: string,
     parentEntityLower: string,
     childEntityUpper: string,
-    childEntityLower: string
+    childEntityLower: string,
+    uiMode: "dialog" | "page"
   ) => {
     return `"use client";
 
@@ -514,6 +533,7 @@ const Add${parentEntityUpper} = ({
                               ? f.selectOptions
                                   .split(",")
                                   .map((opt) => opt.trim())
+                                  .filter((opt) => opt !== "")
                               : [];
                             return `<TableCell>
                         <FormField
@@ -651,7 +671,8 @@ export default Add${parentEntityUpper};`;
     parentEntityUpper: string,
     parentEntityLower: string,
     childEntityUpper: string,
-    childEntityLower: string
+    childEntityLower: string,
+    uiMode: "dialog" | "page"
   ) => {
     return `"use client";
 
@@ -870,6 +891,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
                                 ? f.selectOptions
                                     .split(",")
                                     .map((opt) => opt.trim())
+                                    .filter((opt) => opt !== "")
                                 : [];
                               return `<TableCell>
                         <FormField
@@ -1014,7 +1036,8 @@ export default Edit${parentEntityUpper};`;
     parentTable: TableInfo,
     parentEntityUpper: string,
     parentEntityLower: string,
-    childEntityLower: string
+    childEntityLower: string,
+    uiMode: "dialog" | "page"
   ) => {
     return `import { useState } from "react";
 import { useGet${parentEntityUpper} } from "../service/query";
@@ -1103,7 +1126,11 @@ const List${parentEntityUpper} = ({
 
   const handleEdit = (id: number) => {
     setSelectedParentId(id);
-    setEditOpen(true);
+    ${
+      uiMode === "dialog"
+        ? "setEditOpen(true);"
+        : `window.location.href = "/${parentEntityLower}s/edit/" + id;`
+    }
   };
 
   const handleView = (id: number) => {
@@ -1147,7 +1174,11 @@ const List${parentEntityUpper} = ({
             Manage your ${parentEntityLower} records and associated ${childEntityLower} items
           </CardDescription>
         </div>
-        <Button onClick={() => setOpen(true)} className="bg-primary hover:bg-primary-hover">
+        <Button onClick={() => ${
+          uiMode === "dialog"
+            ? "setOpen(true)"
+            : `window.location.href = "/${parentEntityLower}s/add"`
+        }} className="bg-primary hover:bg-primary-hover">
           <Package className="w-4 h-4 mr-2" />
           Add ${parentEntityUpper}
         </Button>
@@ -1162,7 +1193,7 @@ const List${parentEntityUpper} = ({
           </TableHeader>
           <TableBody>
             {${parentEntityLower}Data?.data?.map((item: any) => (
-              <TableRow key={item.id}>
+              <TableRow key={item.${parentTable.primaryKey || "id"}}>
                 ${parentTable.fields
                   .map((field) => {
                     if (field.type === "boolean") {
@@ -1180,14 +1211,18 @@ const List${parentEntityUpper} = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleView(item.id)}
+                      onClick={() => handleView(item.${
+                        parentTable.primaryKey || "id"
+                      })}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => handleEdit(item.id)}
+                      onClick={() => handleEdit(item.${
+                        parentTable.primaryKey || "id"
+                      })}
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
@@ -1207,7 +1242,9 @@ const List${parentEntityUpper} = ({
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(item.id)}>
+                          <AlertDialogAction onClick={() => handleDelete(item.${
+                            parentTable.primaryKey || "id"
+                          })}>
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
@@ -1372,7 +1409,9 @@ const ${parentEntityUpper}Details = ({ parentId, setOpen }: ${parentEntityUpper}
               </TableHeader>
               <TableBody>
                 {${parentEntityLower}Data.${childEntityLower}Items.map((item: any, index: number) => (
-                  <TableRow key={index}>
+                  <TableRow key={item.${
+                    childTable.primaryKey || "id"
+                  } || index}>
                     ${childTable.fields
                       .map((field) => {
                         if (field.type === "boolean") {
@@ -1541,9 +1580,11 @@ ${parentEntityUpper}.get('/get-all', async (req, res) => {
 
     // Get ${parentEntityLower}s with pagination
     const result = await pool.query(
-      'SELECT id,${backendFields.parent.selectFields} FROM ${
-      parentTable.tableName
-    } ORDER BY id LIMIT $1 OFFSET $2',
+      'SELECT ${parentTable.primaryKey || "id"},${
+      backendFields.parent.selectFields
+    } FROM ${parentTable.tableName} ORDER BY ${
+      parentTable.primaryKey || "id"
+    } LIMIT $1 OFFSET $2',
       [limit, offset]
     );
 
@@ -1570,7 +1611,7 @@ ${parentEntityUpper}.get('/get-by-id/:id', async (req, res) => {
     const ${parentEntityLower}Result = await pool.query(
       'SELECT ${backendFields.parent.selectFields} FROM ${
       parentTable.tableName
-    } WHERE id = $1',
+    } WHERE ${parentTable.primaryKey || "id"} = $1',
       [id]
     );
 
@@ -1610,13 +1651,17 @@ ${parentEntityUpper}.post('/create', async (req, res) => {
     const ${parentEntityLower}Result = await client.query(
       'INSERT INTO ${parentTable.tableName} (${
       backendFields.parent.insertFields
-    }) VALUES (${backendFields.parent.insertPlaceholders}) RETURNING id',
+    }) VALUES (${backendFields.parent.insertPlaceholders}) RETURNING ${
+      parentTable.primaryKey || "id"
+    }',
       [${parentTable.fields
         .map((field: any) => `${parentEntityLower}.${field.name}`)
         .join(", ")}]
     );
 
-    const ${parentEntityLower}Id = ${parentEntityLower}Result.rows[0].id;
+    const ${parentEntityLower}Id = ${parentEntityLower}Result.rows[0].${
+      parentTable.primaryKey || "id"
+    };
 
     // Insert ${childEntityLower} items
     for (const item of ${childEntityLower}Items) {
@@ -1657,9 +1702,9 @@ ${parentEntityUpper}.put('/update/:id', async (req, res) => {
     const values = [id, ...Object.values(updates)];
 
     const result = await pool.query(
-      \`UPDATE ${
-        parentTable.tableName
-      } SET \${setClause} WHERE id = $1 RETURNING *\`,
+      \`UPDATE ${parentTable.tableName} SET \${setClause} WHERE ${
+      parentTable.primaryKey || "id"
+    } = $1 RETURNING *\`,
       values
     );
 
@@ -1692,7 +1737,7 @@ ${parentEntityUpper}.delete('/delete/:id', async (req, res) => {
     // Delete ${parentEntityLower}
     const result = await client.query('DELETE FROM ${
       parentTable.tableName
-    } WHERE id = $1 RETURNING *', [id]);
+    } WHERE ${parentTable.primaryKey || "id"} = $1 RETURNING *', [id]);
 
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -1717,11 +1762,23 @@ export default ${parentEntityUpper};`;
     parentEntityUpper: string,
     parentEntityLower: string
   ) => {
+    const libraryImports = `// Required shadcn/ui components
+npm install @radix-ui/react-dialog @radix-ui/react-switch @radix-ui/react-radio-group
+npm install @radix-ui/react-select @radix-ui/react-label @radix-ui/react-slot
+npm install lucide-react react-hook-form @hookform/resolvers zod
+npm install @tanstack/react-query axios sonner
+
+// Add these to components.json or install via shadcn/ui CLI:
+npx shadcn-ui@latest add button card input label textarea select
+npx shadcn-ui@latest add dialog form tabs badge table switch
+npx shadcn-ui@latest add radio-group separator scroll-area`;
+
     return {
       routeImport: `import ${parentEntityUpper}Page from "./pages/${parentEntityLower}/${parentEntityLower}-page";`,
       routeElement: `<Route path="${parentEntityUpper}Page" element={<${parentEntityUpper}Page />} />`,
       backendRouteImport: `import ${parentEntityUpper}Routes from "./routes/${parentEntityLower}-routes.js";`,
       backendRouteUse: `app.use("/api/v1/${parentEntityLower}s", requireAuth, tenantMiddleware, ${parentEntityUpper}Routes);`,
+      libraryImports,
     };
   };
 
@@ -1950,6 +2007,8 @@ ${generatedCode.routingHelper.libraryImports}`,
             setFrontendPath={setFrontendPath}
             backendRoutePath={backendRoutePath}
             setBackendRoutePath={setBackendRoutePath}
+            uiMode={uiMode}
+            setUiMode={setUiMode}
           />
 
           <DatabaseIntegration
