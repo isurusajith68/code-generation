@@ -51,6 +51,7 @@ const CodeGenerationPage = () => {
   const [projectName, setProjectName] = useState("");
   const [entityName, setEntityName] = useState("");
   const [tableName, setTableName] = useState("");
+  const [primaryKey, setPrimaryKey] = useState("");
   const [frontendPath, setFrontendPath] = useState("");
   const [backendRoutePath, setBackendRoutePath] = useState("");
   const [fields, setFields] = useState<Field[]>([]);
@@ -121,7 +122,7 @@ const CodeGenerationPage = () => {
     const excludeColumns = ["id"];
 
     const newFields = tableColumns
-      .filter((col) => !excludeColumns.includes(col.column_name.toLowerCase()))
+      // .filter((col) => !excludeColumns.includes(col.column_name.toLowerCase()))
       .map((col) => {
         let fieldType = "text";
 
@@ -947,7 +948,7 @@ const List${entityUpper} = ({ setOpen }) => {
                   } || selectedItem.${f.name}`
               )
               .join(",\n            ")},
-            item_id: selectedItem.id,
+            item_id: selectedItem.${primaryKey},
           },
           {
             onSuccess: () => {
@@ -1030,7 +1031,7 @@ const List${entityUpper} = ({ setOpen }) => {
                       ${entityLower}Data?.data?.map((item) => {
                         return (
                           <TableRow
-                            key={item.id}
+                            key={item.${primaryKey}}
                             className="hover:bg-table-body-hover"
                           >
                             ${generateTableCells()}
@@ -1056,7 +1057,7 @@ const List${entityUpper} = ({ setOpen }) => {
                                       <Button
                                         variant="destructive"
                                         className="cursor-pointer"
-                                        onClick={() => handleDelete(item.id)}
+                                        onClick={() => handleDelete(item.${primaryKey})}
                                       >
                                         Delete
                                       </Button>
@@ -1262,9 +1263,9 @@ ${entityUpper}.put("/update-${entityLower}", async (req, res) => {
     const { ${fields.map((f) => f.name).join(", ")}, item_id } = req.body;
 
     const updated${entityUpper} = await pool.query(
-      \`UPDATE ${tableName} SET ${backendFields.updateFields} WHERE id = ${
-      fields.length + 1
-    } RETURNING *\`,
+      \`UPDATE ${tableName} SET ${
+      backendFields.updateFields
+    } WHERE ${primaryKey} = $${fields.length + 1} RETURNING *\`,
       [${backendFields.updatePlaceholders}, item_id]
     );
 
@@ -1296,7 +1297,7 @@ ${entityUpper}.delete("/delete-${entityLower}/:id", async (req, res) => {
     const ${entityLower}Id = req.params.id;
 
     const deleted${entityUpper} = await pool.query(
-      \`DELETE FROM ${tableName} WHERE id = $1 RETURNING *\`,
+      \`DELETE FROM ${tableName} WHERE ${primaryKey} = $1 RETURNING *\`,
       [${entityLower}Id]
     );
 
@@ -1542,6 +1543,28 @@ export default ${entityUpper}`;
                   />
                 </div>
                 <div>
+                  <Label htmlFor="primaryKey">Primary Key Field</Label>
+                  <Select
+                    value={primaryKey || ""}
+                    onValueChange={(value) => setPrimaryKey(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select primary key field" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="id">
+                        id (Auto-generated Primary Key)
+                      </SelectItem>
+                      {fields.length > 0 &&
+                        fields.map((field) => (
+                          <SelectItem key={field.id} value={field.name}>
+                            {field.name} ({field.label})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="frontendPath">Frontend Path</Label>
                   <Input
                     id="frontendPath"
@@ -1550,7 +1573,7 @@ export default ${entityUpper}`;
                     placeholder="D:\ceyinfo\Hotel-ERP-Repo\hotel-property-module\src\pages"
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div>
                   <Label htmlFor="backendPath">Backend Route Path</Label>
                   <Input
                     id="backendPath"
@@ -1727,7 +1750,9 @@ export default ${entityUpper}`;
             <Button
               onClick={generateCode}
               size="lg"
-              disabled={!entityName || !tableName || fields.length === 0}
+              disabled={
+                !entityName || !tableName || fields.length === 0 || !primaryKey
+              }
               className="px-8"
             >
               <Code className="h-5 w-5 mr-2" />

@@ -2,6 +2,13 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Settings } from "lucide-react";
 
 interface ProjectConfigurationProps {
@@ -11,6 +18,8 @@ interface ProjectConfigurationProps {
   setFrontendPath: (path: string) => void;
   backendRoutePath: string;
   setBackendRoutePath: (path: string) => void;
+  uiMode: "dialog" | "page";
+  setUiMode: (mode: "dialog" | "page") => void;
 }
 
 const ProjectConfiguration: React.FC<ProjectConfigurationProps> = ({
@@ -20,6 +29,8 @@ const ProjectConfiguration: React.FC<ProjectConfigurationProps> = ({
   setFrontendPath,
   backendRoutePath,
   setBackendRoutePath,
+  uiMode,
+  setUiMode,
 }) => {
   return (
     <Card className="mb-6">
@@ -30,7 +41,7 @@ const ProjectConfiguration: React.FC<ProjectConfigurationProps> = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <Label>Project Name</Label>
             <Input
@@ -55,6 +66,18 @@ const ProjectConfiguration: React.FC<ProjectConfigurationProps> = ({
               value={backendRoutePath}
               onChange={(e) => setBackendRoutePath(e.target.value)}
             />
+          </div>
+          <div>
+            <Label>UI Mode</Label>
+            <Select value={uiMode} onValueChange={setUiMode}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select UI mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dialog">Dialog (Popup)</SelectItem>
+                <SelectItem value="page">Page Navigation</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </CardContent>

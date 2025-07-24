@@ -85,6 +85,7 @@ export const generateFormFields = (fields: Field[]) => {
                       <SelectContent>
                         ${field.selectOptions
                           .split(",")
+                          .filter((option) => option.trim() !== "")
                           .map(
                             (option) =>
                               `<SelectItem value="${option.trim()}">${option.trim()}</SelectItem>`
@@ -117,6 +118,7 @@ export const generateFormFields = (fields: Field[]) => {
                     >
                       ${field.radioOptions
                         .split(",")
+                        .filter((option) => option.trim() !== "")
                         .map(
                           (option) =>
                             `<FormItem className="flex items-center space-x-3 space-y-0">

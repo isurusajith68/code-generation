@@ -148,59 +148,57 @@ const DatabaseIntegration: React.FC<DatabaseIntegrationProps> = ({
 
     const excludeColumns = ["id"];
 
-    const newFields = columns
-      .filter((col) => !excludeColumns.includes(col.column_name.toLowerCase()))
-      .map((col) => {
-        let fieldType = "text";
+    const newFields = columns.map((col) => {
+      let fieldType = "text";
 
-        if (col.data_type.includes("boolean")) {
-          fieldType = "boolean";
-        } else if (
-          col.data_type.includes("int") ||
-          col.data_type.includes("serial")
-        ) {
-          fieldType = "number";
-        } else if (
-          col.data_type.includes("text") ||
-          (col.data_type.includes("varchar") && col.data_type.includes("255"))
-        ) {
-          fieldType = "textarea";
-        } else if (col.column_name.toLowerCase().includes("email")) {
-          fieldType = "email";
-        } else if (
-          col.column_name.toLowerCase().includes("date") ||
-          col.data_type.includes("date")
-        ) {
-          fieldType = "date";
-        } else if (col.column_name.toLowerCase().includes("password")) {
-          fieldType = "password";
-        } else if (col.column_name.toLowerCase().endsWith("_id")) {
-          fieldType = "select";
-        } else if (
-          col.column_name.toLowerCase().includes("status") ||
-          col.column_name.toLowerCase().includes("type") ||
-          col.column_name.toLowerCase().includes("category")
-        ) {
-          fieldType = "radio";
-        }
+      if (col.data_type.includes("boolean")) {
+        fieldType = "boolean";
+      } else if (
+        col.data_type.includes("int") ||
+        col.data_type.includes("serial")
+      ) {
+        fieldType = "number";
+      } else if (
+        col.data_type.includes("text") ||
+        (col.data_type.includes("varchar") && col.data_type.includes("255"))
+      ) {
+        fieldType = "textarea";
+      } else if (col.column_name.toLowerCase().includes("email")) {
+        fieldType = "email";
+      } else if (
+        col.column_name.toLowerCase().includes("date") ||
+        col.data_type.includes("date")
+      ) {
+        fieldType = "date";
+      } else if (col.column_name.toLowerCase().includes("password")) {
+        fieldType = "password";
+      } else if (col.column_name.toLowerCase().endsWith("_id")) {
+        fieldType = "select";
+      } else if (
+        col.column_name.toLowerCase().includes("status") ||
+        col.column_name.toLowerCase().includes("type") ||
+        col.column_name.toLowerCase().includes("category")
+      ) {
+        fieldType = "radio";
+      }
 
-        const label = col.column_name
-          .replace(/_/g, " ")
-          .replace(/\b\w/g, (l) => l.toUpperCase());
+      const label = col.column_name
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase());
 
-        return {
-          id: Date.now() + Math.random(),
-          name: col.column_name,
-          label: label,
-          type: fieldType,
-          required: col.is_nullable === "NO",
-          dbType: col.data_type.toUpperCase(),
-          selectOptions:
-            fieldType === "select" ? "Option1, Option2, Option3" : "",
-          radioOptions: fieldType === "radio" ? "Active, Inactive" : "",
-          defaultValue: fieldType === "boolean" ? "false" : "",
-        };
-      });
+      return {
+        id: Date.now() + Math.random(),
+        name: col.column_name,
+        label: label,
+        type: fieldType,
+        required: col.is_nullable === "NO",
+        dbType: col.data_type.toUpperCase(),
+        selectOptions:
+          fieldType === "select" ? "Option1, Option2, Option3" : "",
+        radioOptions: fieldType === "radio" ? "Active, Inactive" : "",
+        defaultValue: fieldType === "boolean" ? "false" : "",
+      };
+    });
 
     if (isParent) {
       setParentTable((prev) => ({
