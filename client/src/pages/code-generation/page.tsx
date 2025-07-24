@@ -948,7 +948,7 @@ const List${entityUpper} = ({ setOpen }) => {
                   } || selectedItem.${f.name}`
               )
               .join(",\n            ")},
-            item_id: selectedItem[primaryKey],
+            item_id: selectedItem.${primaryKey},
           },
           {
             onSuccess: () => {
@@ -1031,7 +1031,7 @@ const List${entityUpper} = ({ setOpen }) => {
                       ${entityLower}Data?.data?.map((item) => {
                         return (
                           <TableRow
-                            key={item[primaryKey]}
+                            key={item.${primaryKey}}
                             className="hover:bg-table-body-hover"
                           >
                             ${generateTableCells()}
@@ -1057,7 +1057,7 @@ const List${entityUpper} = ({ setOpen }) => {
                                       <Button
                                         variant="destructive"
                                         className="cursor-pointer"
-                                        onClick={() => handleDelete(item[primaryKey])}
+                                        onClick={() => handleDelete(item.${primaryKey})}
                                       >
                                         Delete
                                       </Button>
@@ -1265,7 +1265,7 @@ ${entityUpper}.put("/update-${entityLower}", async (req, res) => {
     const updated${entityUpper} = await pool.query(
       \`UPDATE ${tableName} SET ${
       backendFields.updateFields
-    } WHERE ${primaryKey} = ${fields.length + 1} RETURNING *\`,
+    } WHERE ${primaryKey} = $${fields.length + 1} RETURNING *\`,
       [${backendFields.updatePlaceholders}, item_id]
     );
 
@@ -1552,6 +1552,9 @@ export default ${entityUpper}`;
                       <SelectValue placeholder="Select primary key field" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="id">
+                        id (Auto-generated Primary Key)
+                      </SelectItem>
                       {fields.length > 0 &&
                         fields.map((field) => (
                           <SelectItem key={field.id} value={field.name}>

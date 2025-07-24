@@ -13,7 +13,6 @@ import {
   generateZodSchema,
   generateFormFields,
   generateTableHeaders,
-  generateBackendFields,
 } from "./utils/codeGenerators";
 
 interface Field {
@@ -85,6 +84,49 @@ const MasterDetailCodeGenerationPage = () => {
 
   const [showGenerated, setShowGenerated] = useState(false);
   const [uiMode, setUiMode] = useState<"dialog" | "page">("dialog");
+
+  const generateBackendFields = (
+    parentFields: Field[],
+    childFields: Field[]
+  ) => {
+    // Remove duplicates and filter out invalid fields
+    const uniqueParentFields = parentFields.filter(
+      (field, index, self) =>
+        field.name &&
+        field.name.trim() !== "" &&
+        self.findIndex((f) => f.name === field.name) === index
+    );
+
+    const uniqueChildFields = childFields.filter(
+      (field, index, self) =>
+        field.name &&
+        field.name.trim() !== "" &&
+        self.findIndex((f) => f.name === field.name) === index
+    );
+
+    return {
+      parent: {
+        insertFields: uniqueParentFields.map((f) => f.name).join(", "),
+        insertPlaceholders: uniqueParentFields
+          .map((_, i) => `$${i + 1}`)
+          .join(", "),
+        selectFields: uniqueParentFields.map((f) => f.name).join(", "),
+        updateFields: uniqueParentFields
+          .map((f, i) => `${f.name} = $${i + 2}`)
+          .join(", "),
+      },
+      child: {
+        insertFields: uniqueChildFields.map((f) => f.name).join(", "),
+        insertPlaceholders: uniqueChildFields
+          .map((_, i) => `$${i + 1}`)
+          .join(", "),
+        selectFields: uniqueChildFields.map((f) => f.name).join(", "),
+        updateFields: uniqueChildFields
+          .map((f, i) => `${f.name} = $${i + 2}`)
+          .join(", "),
+      },
+    };
+  };
 
   const generateCode = () => {
     if (!parentTable.entityName || !childTable.entityName) {
