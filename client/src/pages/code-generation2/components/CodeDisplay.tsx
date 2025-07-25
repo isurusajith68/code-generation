@@ -7,8 +7,7 @@ import { toast } from "sonner";
 
 interface GeneratedCode {
   mainComponent: string;
-  addComponent: string;
-  editComponent: string;
+  formComponent: string;
   listComponent: string;
   detailsComponent: string;
   queries: string;
@@ -86,17 +85,10 @@ const CodeDisplay: React.FC<CodeDisplayProps> = ({
       icon: <FileText className="w-4 h-4" />,
     },
     {
-      id: "add",
-      title: "Add Component",
-      filename: `add-${parentEntityName.toLowerCase()}.tsx`,
-      content: generatedCode.addComponent,
-      icon: <Code className="w-4 h-4" />,
-    },
-    {
-      id: "edit",
-      title: "Edit Component",
-      filename: `edit-${parentEntityName.toLowerCase()}.tsx`,
-      content: generatedCode.editComponent,
+      id: "form",
+      title: "Component (Add/Edit)",
+      filename: `${parentEntityName.toLowerCase()}-form.tsx`,
+      content: generatedCode.formComponent,
       icon: <Code className="w-4 h-4" />,
     },
     {
@@ -185,7 +177,7 @@ ${generatedCode.exportStatements.backendRouteExport}`,
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="main" className="w-full">
-          <TabsList className="grid w-full grid-cols-9 mb-4">
+          <TabsList className="grid w-full grid-cols-8 mb-4">
             {codeFiles.map((file) => (
               <TabsTrigger key={file.id} value={file.id} className="text-xs">
                 {file.icon}

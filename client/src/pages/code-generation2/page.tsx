@@ -37,8 +37,7 @@ interface TableInfo {
 
 interface GeneratedCode {
   mainComponent: string;
-  addComponent: string;
-  editComponent: string;
+  formComponent: string;
   listComponent: string;
   detailsComponent: string;
   queries: string;
@@ -73,8 +72,7 @@ const MasterDetailCodeGenerationPage = () => {
 
   const [generatedCode, setGeneratedCode] = useState<GeneratedCode>({
     mainComponent: "",
-    addComponent: "",
-    editComponent: "",
+    formComponent: "",
     listComponent: "",
     detailsComponent: "",
     queries: "",
@@ -175,16 +173,7 @@ const MasterDetailCodeGenerationPage = () => {
       parentEntityLower,
       uiMode
     );
-    const addComponent = generateAddComponent(
-      parentTable,
-      childTable,
-      parentEntityUpper,
-      parentEntityLower,
-      childEntityUpper,
-      childEntityLower,
-      uiMode
-    );
-    const editComponent = generateEditComponent(
+    const formComponent = generateFormComponent(
       parentTable,
       childTable,
       parentEntityUpper,
@@ -237,8 +226,7 @@ const MasterDetailCodeGenerationPage = () => {
 
     setGeneratedCode({
       mainComponent,
-      addComponent,
-      editComponent,
+      formComponent,
       listComponent,
       detailsComponent,
       queries,
@@ -254,11 +242,8 @@ const MasterDetailCodeGenerationPage = () => {
     parentEntityLower: string,
     uiMode: "dialog" | "page"
   ) => {
-    return `"use client";
-
-import React from "react";
-import Add${parentEntityUpper} from "./components/add-${parentEntityLower}";
-import Edit${parentEntityUpper} from "./components/edit-${parentEntityLower}";
+    return `import React from "react";
+import ${parentEntityUpper}Form from "./components/${parentEntityLower}-form";
 import List${parentEntityUpper} from "./components/list-${parentEntityLower}";
 import ${parentEntityUpper}Details from "./components/${parentEntityLower}-details";
 import {
@@ -288,7 +273,7 @@ const ${parentEntityUpper}Page = () => {
               </h2>
             </div>
           </DialogHeader>
-          <Add${parentEntityUpper} setOpen={setOpen} />
+          <${parentEntityUpper}Form setOpen={setOpen} isEdit={false} />
         </DialogContent>
       </Dialog>
 
@@ -304,9 +289,10 @@ const ${parentEntityUpper}Page = () => {
             </div>
           </DialogHeader>
           {selectedParentId && (
-            <Edit${parentEntityUpper} 
+            <${parentEntityUpper}Form 
               ${parentEntityLower}Id={selectedParentId} 
               setOpen={setEditOpen} 
+              isEdit={true}
             />
           )}
         </DialogContent>
@@ -345,7 +331,7 @@ const ${parentEntityUpper}Page = () => {
 export default ${parentEntityUpper}Page;`;
   };
 
-  const generateAddComponent = (
+  const generateFormComponent = (
     parentTable: TableInfo,
     childTable: TableInfo,
     parentEntityUpper: string,
@@ -354,12 +340,70 @@ export default ${parentEntityUpper}Page;`;
     childEntityLower: string,
     uiMode: "dialog" | "page"
   ) => {
-    return `"use client";
+    const componentProps =
+      uiMode === "page"
+        ? `{
+  onCancel,
+}: {
+  onCancel: () => void;
+}`
+        : `{
+  ${parentEntityLower}Id,
+  setOpen,
+  isEdit = false,
+}: {
+  ${parentEntityLower}Id?: number;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isEdit?: boolean;
+}`;
 
-import { useState } from "react";
+    const onSuccessAction =
+      uiMode === "page" ? "navigate(-1);" : "setOpen(false);";
+    const cancelAction = uiMode === "page" ? "navigate(-1)" : "form.reset()";
+    const cancelButtonText = uiMode === "page" ? "Cancel" : "Reset";
+
+    const pageWrapper =
+      uiMode === "page"
+        ? `<div className="container mx-auto py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center gap-2 mb-6">
+          {isEdit ? (
+            <>
+              <Edit className="w-6 h-6 text-primary" />
+              <h1 className="text-3xl font-bold text-primary">
+                Edit ${parentEntityUpper}
+              </h1>
+            </>
+          ) : (
+            <>
+              <PackagePlus className="w-6 h-6 text-primary" />
+              <h1 className="text-3xl font-bold text-primary">
+                Add New ${parentEntityUpper}
+              </h1>
+            </>
+          )}
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">`
+        : `<div className="bg-white rounded-lg p-0">`;
+
+    const pageWrapperEnd =
+      uiMode === "page"
+        ? `        </div>
+      </div>
+    </div>`
+        : `</div>`;
+
+    const additionalImports = uiMode === "page" ? ", PackagePlus, Edit" : "";
+
+    return `import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+${
+  uiMode === "page"
+    ? 'import { useSearchParams, useNavigate } from "react-router";'
+    : ""
+}
 import {
   Form,
   FormControl,
@@ -389,8 +433,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2 } from "lucide-react";
-import { useAdd${parentEntityUpper}Mutation } from "../service/mutation";
+import { Plus, Trash2${additionalImports} } from "lucide-react";
+import { useAdd${parentEntityUpper}Mutation, useUpdate${parentEntityUpper}Mutation } from "../service/mutation";
+import { useGet${parentEntityUpper}ById } from "../service/query";
 import { toast } from "sonner";
 
 ${generateZodSchema(parentTable.fields, parentTable.entityName)}
@@ -399,16 +444,24 @@ ${generateZodSchema(childTable.fields, childTable.entityName)}
 
 const masterDetailSchema = z.object({
   ${parentEntityLower}: ${parentTable.entityName.toLowerCase()}Schema,
-  ${childEntityLower}Items: z.array(${childTable.entityName.toLowerCase()}Schema).min(1, "At least one ${childEntityLower} item is required"),
+  ${childEntityLower}Items: z.array(${childTable.entityName.toLowerCase()}Schema).min(0, "${childEntityUpper} items are optional"),
 });
 
 type MasterDetailFormData = z.infer<typeof masterDetailSchema>;
 
-const Add${parentEntityUpper} = ({
-  setOpen,
-}: {
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}) => {
+const ${parentEntityUpper}Form = (${componentProps}) => {
+${
+  uiMode === "page"
+    ? `  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const ${parentEntityLower}Id = searchParams.get("id") ? parseInt(searchParams.get("id")!) : undefined;
+  const isEdit = !!${parentEntityLower}Id;
+`
+    : ""
+}  const { data: ${parentEntityLower}Data, isLoading } = useGet${parentEntityUpper}ById(${parentEntityLower}Id || 0);
+  const { mutate: add${parentEntityUpper}, isPending: isAdding } = useAdd${parentEntityUpper}Mutation();
+  const { mutate: update${parentEntityUpper}, isPending: isUpdating } = useUpdate${parentEntityUpper}Mutation();
+
   const form = useForm<MasterDetailFormData>({
     resolver: zodResolver(masterDetailSchema),
     defaultValues: {
@@ -444,29 +497,57 @@ const Add${parentEntityUpper} = ({
     name: "${childEntityLower}Items",
   });
 
-  const { mutate: add${parentEntityUpper}, isPending } = useAdd${parentEntityUpper}Mutation();
+  // Load data for edit mode
+  useEffect(() => {
+    if (isEdit && ${parentEntityLower}Data) {
+      form.reset({
+        ${parentEntityLower}: {
+          ${parentTable.fields
+            .map(
+              (field) =>
+                `${field.name}: ${parentEntityLower}Data.${field.name} || ${
+                  field.type === "boolean"
+                    ? "false"
+                    : field.type === "number"
+                    ? "0"
+                    : '""'
+                },`
+            )
+            .join("\n          ")}
+        },
+        ${childEntityLower}Items: ${parentEntityLower}Data.${childEntityLower}Items || [],
+      });
+    }
+  }, [isEdit, ${parentEntityLower}Data, form]);
 
   const onSubmit = async (data: MasterDetailFormData) => {
     try {
-      toast.promise(
-        new Promise((resolve, reject) => {
-          add${parentEntityUpper}(data, {
-            onSuccess: () => {
-              form.reset();
-              resolve("${parentEntityUpper} added successfully");
-              setOpen(false);
-            },
-            onError: (error) => {
-              reject(error.message);
-            },
+      const promise = isEdit 
+        ? new Promise((resolve, reject) => {
+            update${parentEntityUpper}({ id: ${parentEntityLower}Id!, data }, {
+              onSuccess: () => {
+                resolve("${parentEntityUpper} updated successfully");
+                ${onSuccessAction}
+              },
+              onError: (error) => reject(error.message),
+            });
+          })
+        : new Promise((resolve, reject) => {
+            add${parentEntityUpper}(data, {
+              onSuccess: () => {
+                form.reset();
+                resolve("${parentEntityUpper} added successfully");
+                ${onSuccessAction}
+              },
+              onError: (error) => reject(error.message),
+            });
           });
-        }),
-        {
-          loading: "Adding ${parentEntityLower}...",
-          success: "${parentEntityUpper} added successfully",
-          error: "Failed to add ${parentEntityLower}",
-        }
-      );
+
+      toast.promise(promise, {
+        loading: isEdit ? "Updating ${parentEntityLower}..." : "Adding ${parentEntityLower}...",
+        success: isEdit ? "${parentEntityUpper} updated successfully" : "${parentEntityUpper} added successfully",
+        error: isEdit ? "Failed to update ${parentEntityLower}" : "Failed to add ${parentEntityLower}",
+      });
     } catch (error) {
       console.log(error);
     }
@@ -487,14 +568,20 @@ const Add${parentEntityUpper} = ({
     });
   };
 
+  if (isEdit && isLoading) {
+    return <div className="text-center py-4">Loading...</div>;
+  }
+
   return (
-    <div className="bg-white rounded-lg p-0">
+    ${pageWrapper}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           {/* Parent Form */}
           <Card>
             <CardHeader>
-              <CardTitle>${parentEntityUpper} Information</CardTitle>
+              <CardTitle>
+                {isEdit ? "Edit" : "Add"} ${parentEntityUpper} Information
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -523,378 +610,6 @@ const Add${parentEntityUpper} = ({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader className="bg-primary text-center border text-white hover:bg-primary-hover hover:text-white">
-                  <TableRow>
-                    ${generateTableHeaders(childTable.fields)}
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fields.map((field, index) => (
-                    <TableRow key={field.id}>
-                      ${childTable.fields
-                        .map((f) => {
-                          if (f.type === "text" || f.type === "email") {
-                            return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input {...field} placeholder="${f.label}" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
-                          } else if (f.type === "number") {
-                            return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input 
-                                  {...field} 
-                                  type="number" 
-                                  placeholder="${f.label}"
-                                  onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
-                          } else if (f.type === "select") {
-                            const options = f.selectOptions
-                              ? f.selectOptions
-                                  .split(",")
-                                  .map((opt) => opt.trim())
-                                  .filter((opt) => opt !== "")
-                              : [];
-                            return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${
-                              f.name
-                            }\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select ${
-                                      f.label
-                                    }" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  ${options
-                                    .map(
-                                      (option) =>
-                                        `<SelectItem value="${option}">${option}</SelectItem>`
-                                    )
-                                    .join(
-                                      "\n                                  "
-                                    )}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
-                          } else if (f.type === "boolean") {
-                            return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Switch
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
-                          } else if (f.type === "textarea") {
-                            return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Textarea {...field} placeholder="${f.label}" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
-                          } else {
-                            return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input {...field} placeholder="${f.label}" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
-                          }
-                        })
-                        .join("\n                      ")}
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => remove(index)}
-                          disabled={fields.length === 1}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end gap-4">
-            <Button
-              className="cursor-pointer"
-              type="button"
-              variant="outline"
-              onClick={() => form.reset()}
-            >
-              Reset
-            </Button>
-            <Button
-              className="cursor-pointer"
-              type="submit"
-              disabled={form.formState.isSubmitting || isPending}
-            >
-              {form.formState.isSubmitting || isPending
-                ? "Adding..."
-                : "Add ${parentEntityUpper}"}
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
-  );
-};
-
-export default Add${parentEntityUpper};`;
-  };
-
-  // Helper function for generating edit component
-  const generateEditComponent = (
-    parentTable: TableInfo,
-    childTable: TableInfo,
-    parentEntityUpper: string,
-    parentEntityLower: string,
-    childEntityUpper: string,
-    childEntityLower: string,
-    uiMode: "dialog" | "page"
-  ) => {
-    return `"use client";
-
-import { useState, useEffect } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus } from "lucide-react";
-import { useUpdate${parentEntityUpper}Mutation } from "../service/mutation";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useGet${parentEntityUpper}ById } from "../service/query";
-${
-  parentTable.fields.some((f) => f.type === "select")
-    ? 'import {\n  Select,\n  SelectContent,\n  SelectItem,\n  SelectTrigger,\n  SelectValue,\n} from "@/components/ui/select";'
-    : ""
-}
-${
-  parentTable.fields.some((f) => f.type === "boolean") ||
-  childTable.fields.some((f) => f.type === "boolean")
-    ? 'import { Switch } from "@/components/ui/switch";'
-    : ""
-}
-${
-  parentTable.fields.some((f) => f.type === "textarea") ||
-  childTable.fields.some((f) => f.type === "textarea")
-    ? 'import { Textarea } from "@/components/ui/textarea";'
-    : ""
-}
-
-${generateZodSchema(parentTable.fields, parentTable.entityName)}
-
-${generateZodSchema(childTable.fields, childTable.entityName)}
-
-const formSchema = z.object({
-  ${parentTable.fields
-    .map(
-      (field) =>
-        `${field.name}: ${parentTable.entityName.toLowerCase()}Schema.shape.${
-          field.name
-        }`
-    )
-    .join(",\n  ")},
-  ${childEntityLower}Items: z.array(${childTable.entityName.toLowerCase()}Schema).min(0, "Items are optional for editing"),
-});
-
-interface Edit${parentEntityUpper}Props {
-  ${parentEntityLower}Id: number;
-  setOpen: (open: boolean) => void;
-}
-
-const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
-  ${parentEntityLower}Id,
-  setOpen,
-}) => {
-  const { data: ${parentEntityLower}Data, isLoading } = useGet${parentEntityUpper}ById(${parentEntityLower}Id);
-  const { mutate: update${parentEntityUpper}, isPending } = useUpdate${parentEntityUpper}Mutation();
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      ${parentTable.fields
-        .map((field) => {
-          if (field.type === "boolean") {
-            return `${field.name}: false,`;
-          } else if (field.type === "number") {
-            return `${field.name}: 0,`;
-          } else {
-            return `${field.name}: "",`;
-          }
-        })
-        .join("\n      ")}
-      ${childEntityLower}Items: [],
-    },
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "${childEntityLower}Items",
-  });
-
-  // Load data when component mounts or ${parentEntityLower}Id changes
-  useEffect(() => {
-    if (${parentEntityLower}Data) {
-      // Set form values from loaded data
-      form.reset({
-        ${parentTable.fields
-          .map(
-            (field) =>
-              `${field.name}: ${parentEntityLower}Data.${field.name} || ${
-                field.type === "boolean"
-                  ? "false"
-                  : field.type === "number"
-                  ? "0"
-                  : '""'
-              },`
-          )
-          .join("\n        ")}
-        ${childEntityLower}Items: ${parentEntityLower}Data.${childEntityLower}Items || [],
-      });
-    }
-  }, [${parentEntityLower}Data, form]);
-
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    update${parentEntityUpper}(
-      {
-        id: ${parentEntityLower}Id,
-        data: values,
-      },
-      {
-        onSuccess: () => {
-          setOpen(false);
-        },
-      }
-    );
-  };
-
-  const addNewItem = () => {
-    append({
-      ${childTable.fields
-        .map((field) => {
-          if (field.type === "boolean") {
-            return `${field.name}: false,`;
-          } else if (field.type === "number") {
-            return `${field.name}: 0,`;
-          } else {
-            return `${field.name}: "",`;
-          }
-        })
-        .join("\n      ")}
-    });
-  };
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  return (
-    <div className="space-y-6">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Parent Fields */}
-          <Card>
-            <CardHeader>
-              <CardTitle>${parentEntityUpper} Information</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              ${generateFormFields(parentTable.fields)}
-            </CardContent>
-          </Card>
-
-          {/* Child Fields */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>${childEntityUpper} Items</CardTitle>
-              <Button type="button" onClick={addNewItem} size="sm" className="bg-primary hover:bg-primary-hover">
-                <Plus className="h-4 w-4 mr-2" />
-                Add ${childEntityUpper}
-              </Button>
-            </CardHeader>
-            <CardContent>
               {fields.length > 0 ? (
                 <Table>
                   <TableHeader className="bg-primary text-center border text-white hover:bg-primary-hover hover:text-white">
@@ -908,26 +623,41 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
                       <TableRow key={field.id}>
                         ${childTable.fields
                           .map((f) => {
-                            if (f.type === "number") {
+                            if (f.type === "text" || f.type === "email") {
                               return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input 
-                                  {...field} 
-                                  type="number" 
-                                  placeholder="${f.label}"
-                                  onChange={(e) => field.onChange(Number(e.target.value))}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
+                          <FormField
+                            control={form.control}
+                            name={\`${childEntityLower}Items.\${index}.${f.name}\`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input {...field} placeholder="${f.label}" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </TableCell>`;
+                            } else if (f.type === "number") {
+                              return `<TableCell>
+                          <FormField
+                            control={form.control}
+                            name={\`${childEntityLower}Items.\${index}.${f.name}\`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input 
+                                    {...field} 
+                                    type="number" 
+                                    placeholder="${f.label}"
+                                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </TableCell>`;
                             } else if (f.type === "select") {
                               const options = f.selectOptions
                                 ? f.selectOptions
@@ -936,85 +666,85 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
                                     .filter((opt) => opt !== "")
                                 : [];
                               return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${
+                          <FormField
+                            control={form.control}
+                            name={\`${childEntityLower}Items.\${index}.${
                                 f.name
                               }\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select ${
-                                      f.label
-                                    }" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  ${options
-                                    .map(
-                                      (option) =>
-                                        `<SelectItem value="${option}">${option}</SelectItem>`
-                                    )
-                                    .join(
-                                      "\n                                  "
-                                    )}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
+                            render={({ field }) => (
+                              <FormItem>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select ${
+                                        f.label
+                                      }" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    ${options
+                                      .map(
+                                        (option) =>
+                                          `<SelectItem value="${option}">${option}</SelectItem>`
+                                      )
+                                      .join(
+                                        "\n                                    "
+                                      )}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </TableCell>`;
                             } else if (f.type === "boolean") {
                               return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Switch
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
+                          <FormField
+                            control={form.control}
+                            name={\`${childEntityLower}Items.\${index}.${f.name}\`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </TableCell>`;
                             } else if (f.type === "textarea") {
                               return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Textarea {...field} placeholder="${f.label}" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
+                          <FormField
+                            control={form.control}
+                            name={\`${childEntityLower}Items.\${index}.${f.name}\`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Textarea {...field} placeholder="${f.label}" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </TableCell>`;
                             } else {
                               return `<TableCell>
-                        <FormField
-                          control={form.control}
-                          name={\`${childEntityLower}Items.\${index}.${f.name}\`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input {...field} placeholder="${f.label}" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TableCell>`;
+                          <FormField
+                            control={form.control}
+                            name={\`${childEntityLower}Items.\${index}.${f.name}\`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input {...field} placeholder="${f.label}" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </TableCell>`;
                             }
                           })
                           .join("\n                        ")}
@@ -1024,7 +754,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
                             variant="destructive"
                             size="sm"
                             onClick={() => remove(index)}
-                            disabled={fields.length === 1}
+                            disabled={fields.length === 1 && !isEdit}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -1037,7 +767,7 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
                 <div className="text-center py-8 text-muted-foreground">
                   No ${childEntityLower} items added yet.
                   <br />
-                  <Button type="button" onClick={addNewItem} size="sm" className="mt-2">
+                  <Button type="button" onClick={addDetailItem} size="sm" className="mt-2">
                     <Plus className="h-4 w-4 mr-2" />
                     Add First ${childEntityUpper}
                   </Button>
@@ -1046,31 +776,32 @@ const Edit${parentEntityUpper}: React.FC<Edit${parentEntityUpper}Props> = ({
             </CardContent>
           </Card>
 
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end gap-4">
             <Button
+              className="cursor-pointer"
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => ${cancelAction}}
             >
-              Cancel
+              ${cancelButtonText}
             </Button>
             <Button
               className="cursor-pointer"
               type="submit"
-              disabled={form.formState.isSubmitting || isPending}
+              disabled={form.formState.isSubmitting || isAdding || isUpdating}
             >
-              {form.formState.isSubmitting || isPending
-                ? "Updating..."
-                : "Update ${parentEntityUpper}"}
+              {form.formState.isSubmitting || isAdding || isUpdating
+                ? (isEdit ? "Updating..." : "Adding...")
+                : (isEdit ? "Update ${parentEntityUpper}" : "Add ${parentEntityUpper}")}
             </Button>
           </div>
         </form>
       </Form>
-    </div>
+    ${pageWrapperEnd}
   );
 };
 
-export default Edit${parentEntityUpper};`;
+export default ${parentEntityUpper}Form;`;
   };
 
   // Helper function for generating list component
@@ -1082,6 +813,7 @@ export default Edit${parentEntityUpper};`;
     uiMode: "dialog" | "page"
   ) => {
     return `import { useState } from "react";
+${uiMode === "page" ? 'import { useNavigate } from "react-router";' : ""}
 import { useGet${parentEntityUpper} } from "../service/query";
 import {
   Package,
@@ -1146,7 +878,7 @@ const List${parentEntityUpper} = ({
 }: List${parentEntityUpper}Props) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
+${uiMode === "page" ? "  const navigate = useNavigate();\n" : ""}
   const {
     data: ${parentEntityLower}Data,
     isLoading,
@@ -1171,7 +903,7 @@ const List${parentEntityUpper} = ({
     ${
       uiMode === "dialog"
         ? "setEditOpen(true);"
-        : `window.location.href = "/${parentEntityLower}s/edit/" + id;`
+        : `navigate("/${parentEntityLower}s/edit?id=" + id);`
     }
   };
 
@@ -1219,7 +951,7 @@ const List${parentEntityUpper} = ({
         <Button onClick={() => ${
           uiMode === "dialog"
             ? "setOpen(true)"
-            : `window.location.href = "/${parentEntityLower}s/add"`
+            : `navigate("/${parentEntityLower}s/add")`
         }} className="bg-primary hover:bg-primary-hover">
           <Package className="w-4 h-4 mr-2" />
           Add ${parentEntityUpper}
@@ -1730,34 +1462,63 @@ ${parentEntityUpper}.post('/create', async (req, res) => {
   }
 });
 
-// PUT /${parentEntityLower}s/update/:id - Update ${parentEntityLower}
+// PUT /${parentEntityLower}s/update/:id - Update ${parentEntityLower} with ${childEntityLower} items
 ${parentEntityUpper}.put('/update/:id', async (req, res) => {
+  const pool = req.tenantPool;
+  const client = await pool.connect();
+  
   try {
-    const pool = req.tenantPool;
+    await client.query('BEGIN');
+
     const { id } = req.params;
-    const updates = req.body;
+    const { ${parentEntityLower}, ${childEntityLower}Items } = req.body;
 
-    const setClause = Object.keys(updates)
-      .map((key, index) => \`\${key} = $\${index + 2}\`)
-      .join(', ');
-    
-    const values = [id, ...Object.values(updates)];
-
-    const result = await pool.query(
-      \`UPDATE ${parentTable.tableName} SET \${setClause} WHERE ${
-      parentTable.primaryKey || "id"
-    } = $1 RETURNING *\`,
-      values
+    // Update ${parentEntityLower}
+    const ${parentEntityLower}Result = await client.query(
+      'UPDATE ${parentTable.tableName} SET ${
+      backendFields.parent.updateFields
+    } WHERE ${parentTable.primaryKey || "id"} = $1 RETURNING *',
+      [id, ${parentTable.fields
+        .map((field: any) => `${parentEntityLower}.${field.name}`)
+        .join(", ")}]
     );
 
-    if (result.rows.length === 0) {
+    if (${parentEntityLower}Result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: '${parentEntityUpper} not found' });
     }
 
-    res.json(result.rows[0]);
+    // Delete existing ${childEntityLower} items
+    await client.query('DELETE FROM ${childTable.tableName} WHERE ${
+      childTable.foreignKey
+    } = $1', [id]);
+
+    // Insert updated ${childEntityLower} items
+    for (const item of ${childEntityLower}Items) {
+      await client.query(
+        'INSERT INTO ${childTable.tableName} (${
+      backendFields.child.insertFields
+    }, ${childTable.foreignKey}) VALUES (${
+      backendFields.child.insertPlaceholders
+    }, $${backendFields.child.insertPlaceholders.split(", ").length + 1})',
+        [${childTable.fields
+          .map((field: any) => `item.${field.name}`)
+          .join(", ")}, id]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ 
+      id: id, 
+      message: '${parentEntityUpper} updated successfully',
+      data: ${parentEntityLower}Result.rows[0]
+    });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error updating ${parentEntityLower}:', error);
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -1808,16 +1569,41 @@ export default ${parentEntityUpper};`;
 npm install @radix-ui/react-dialog @radix-ui/react-switch @radix-ui/react-radio-group
 npm install @radix-ui/react-select @radix-ui/react-label @radix-ui/react-slot
 npm install lucide-react react-hook-form @hookform/resolvers zod
-npm install @tanstack/react-query axios sonner
+npm install @tanstack/react-query axios sonner react-router
 
 // Add these to components.json or install via shadcn/ui CLI:
 npx shadcn-ui@latest add button card input label textarea select
 npx shadcn-ui@latest add dialog form tabs badge table switch
 npx shadcn-ui@latest add radio-group separator scroll-area`;
 
+    const routeImport =
+      uiMode === "page"
+        ? `import { useNavigate } from "react-router";
+import ${parentEntityUpper}Page from "./pages/${parentEntityLower}/${parentEntityLower}-page";
+import ${parentEntityUpper}Form from "./pages/${parentEntityLower}/${parentEntityLower}-form";
+
+// Wrapper components for navigation
+const ${parentEntityUpper}AddWrapper = () => {
+  const navigate = useNavigate();
+  return <${parentEntityUpper}Form onCancel={() => navigate(-1)} />;
+};
+
+const ${parentEntityUpper}EditWrapper = () => {
+  const navigate = useNavigate();
+  return <${parentEntityUpper}Form onCancel={() => navigate(-1)} />;
+};`
+        : `import ${parentEntityUpper}Page from "./pages/${parentEntityLower}/${parentEntityLower}-page";`;
+
+    const routeElement =
+      uiMode === "page"
+        ? `<Route path="/${parentEntityLower}s" element={<${parentEntityUpper}Page />} />
+<Route path="/${parentEntityLower}s/add" element={<${parentEntityUpper}AddWrapper />} />
+<Route path="/${parentEntityLower}s/edit" element={<${parentEntityUpper}EditWrapper />} />`
+        : `<Route path="/${parentEntityLower}s" element={<${parentEntityUpper}Page />} />`;
+
     return {
-      routeImport: `import ${parentEntityUpper}Page from "./pages/${parentEntityLower}/${parentEntityLower}-page";`,
-      routeElement: `<Route path="${parentEntityUpper}Page" element={<${parentEntityUpper}Page />} />`,
+      routeImport,
+      routeElement,
       backendRouteImport: `import ${parentEntityUpper}Routes from "./routes/${parentEntityLower}-routes.js";`,
       backendRouteUse: `app.use("/api/v1/${parentEntityLower}s", requireAuth, tenantMiddleware, ${parentEntityUpper}Routes);`,
       libraryImports,
@@ -1881,15 +1667,9 @@ npx shadcn-ui@latest add radio-group separator scroll-area`;
           type: "frontend",
         },
         {
-          filename: `add-${parentEntityLower}.tsx`,
+          filename: `${parentEntityLower}-form.tsx`,
           path: frontendComponentsPath,
-          content: generatedCode.addComponent,
-          type: "frontend",
-        },
-        {
-          filename: `edit-${parentEntityLower}.tsx`,
-          path: frontendComponentsPath,
-          content: generatedCode.editComponent,
+          content: generatedCode.formComponent,
           type: "frontend",
         },
         {
