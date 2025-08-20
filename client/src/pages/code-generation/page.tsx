@@ -119,61 +119,57 @@ const CodeGenerationPage = () => {
       return;
     }
 
-    const excludeColumns = ["id"];
+    const newFields = tableColumns.map((col) => {
+      let fieldType = "text";
 
-    const newFields = tableColumns
-      // .filter((col) => !excludeColumns.includes(col.column_name.toLowerCase()))
-      .map((col) => {
-        let fieldType = "text";
+      if (col.data_type.includes("boolean")) {
+        fieldType = "boolean";
+      } else if (
+        col.data_type.includes("int") ||
+        col.data_type.includes("serial")
+      ) {
+        fieldType = "number";
+      } else if (
+        col.data_type.includes("text") ||
+        (col.data_type.includes("varchar") && col.data_type.includes("255"))
+      ) {
+        fieldType = "textarea";
+      } else if (col.column_name.toLowerCase().includes("email")) {
+        fieldType = "email";
+      } else if (
+        col.column_name.toLowerCase().includes("date") ||
+        col.data_type.includes("date")
+      ) {
+        fieldType = "date";
+      } else if (col.column_name.toLowerCase().includes("password")) {
+        fieldType = "password";
+      } else if (col.column_name.toLowerCase().endsWith("_id")) {
+        fieldType = "select";
+      } else if (
+        col.column_name.toLowerCase().includes("status") ||
+        col.column_name.toLowerCase().includes("type") ||
+        col.column_name.toLowerCase().includes("category")
+      ) {
+        fieldType = "radio";
+      }
 
-        if (col.data_type.includes("boolean")) {
-          fieldType = "boolean";
-        } else if (
-          col.data_type.includes("int") ||
-          col.data_type.includes("serial")
-        ) {
-          fieldType = "number";
-        } else if (
-          col.data_type.includes("text") ||
-          (col.data_type.includes("varchar") && col.data_type.includes("255"))
-        ) {
-          fieldType = "textarea";
-        } else if (col.column_name.toLowerCase().includes("email")) {
-          fieldType = "email";
-        } else if (
-          col.column_name.toLowerCase().includes("date") ||
-          col.data_type.includes("date")
-        ) {
-          fieldType = "date";
-        } else if (col.column_name.toLowerCase().includes("password")) {
-          fieldType = "password";
-        } else if (col.column_name.toLowerCase().endsWith("_id")) {
-          fieldType = "select";
-        } else if (
-          col.column_name.toLowerCase().includes("status") ||
-          col.column_name.toLowerCase().includes("type") ||
-          col.column_name.toLowerCase().includes("category")
-        ) {
-          fieldType = "radio";
-        }
+      const label = col.column_name
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase());
 
-        const label = col.column_name
-          .replace(/_/g, " ")
-          .replace(/\b\w/g, (l) => l.toUpperCase());
-
-        return {
-          id: Date.now() + Math.random(),
-          name: col.column_name,
-          label: label,
-          type: fieldType,
-          required: col.is_nullable === "NO",
-          dbType: col.data_type.toUpperCase(),
-          selectOptions:
-            fieldType === "select" ? "Option1, Option2, Option3" : "",
-          radioOptions: fieldType === "radio" ? "Active, Inactive" : "",
-          defaultValue: fieldType === "boolean" ? "false" : "",
-        };
-      });
+      return {
+        id: Date.now() + Math.random(),
+        name: col.column_name,
+        label: label,
+        type: fieldType,
+        required: col.is_nullable === "NO",
+        dbType: col.data_type.toUpperCase(),
+        selectOptions:
+          fieldType === "select" ? "Option1, Option2, Option3" : "",
+        radioOptions: fieldType === "radio" ? "Active, Inactive" : "",
+        defaultValue: fieldType === "boolean" ? "false" : "",
+      };
+    });
 
     setFields(newFields);
 
@@ -235,7 +231,7 @@ const CodeGenerationPage = () => {
           },
           {
             type: "frontend",
-            filename: `add-${entityName.toLowerCase()}.tsx`,
+            filename: `${entityName.toLowerCase()}-form.tsx`,
             path: `${frontendPath}/${entityName.toLowerCase()}/components`,
             content: generatedCode.addComponent,
           },
@@ -321,7 +317,11 @@ const CodeGenerationPage = () => {
     ]);
   };
 
-  const updateField = (id: number, key: keyof Field, value: any) => {
+  const updateField = (
+    id: number,
+    key: keyof Field,
+    value: string | boolean | number
+  ) => {
     setFields(
       fields.map((field) =>
         field.id === id ? { ...field, [key]: value } : field
@@ -584,89 +584,6 @@ const CodeGenerationPage = () => {
       .join("\n                            ");
   };
 
-  const generateEditFields = () => {
-    return fields
-      .map((field) => {
-        const fieldName =
-          field.name.charAt(0).toUpperCase() + field.name.slice(1);
-        if (field.type === "textarea") {
-          return `                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    ${field.label}
-                  </label>
-                  <Textarea
-                    value={updated${fieldName}}
-                    onChange={(e) => setUpdated${fieldName}(e.target.value)}
-                  />
-                </div>`;
-        } else if (field.type === "select") {
-          return `                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    ${field.label}
-                  </label>
-                  <Select
-                    value={updated${fieldName}}
-                    onValueChange={setUpdated${fieldName}}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select ${field.label}" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Add your options here */}
-                    </SelectContent>
-                  </Select>
-                </div>`;
-        } else if (field.type === "boolean") {
-          return `                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <label className="block text-sm font-medium text-gray-700">
-                    ${field.label}
-                  </label>
-                  <Switch
-                    checked={updated${fieldName}}
-                    onCheckedChange={setUpdated${fieldName}}
-                  />
-                </div>`;
-        } else if (field.type === "radio") {
-          return `                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ${field.label}
-                  </label>
-                  <RadioGroup
-                    value={updated${fieldName}}
-                    onValueChange={setUpdated${fieldName}}
-                  >
-                    ${field.radioOptions
-                      .split(",")
-                      .map(
-                        (option) =>
-                          `<div className="flex items-center space-x-2">
-                      <RadioGroupItem value="${option.trim()}" id="${option.trim()}" />
-                      <Label htmlFor="${option.trim()}">${option.trim()}</Label>
-                    </div>`
-                      )
-                      .join("\n                    ")}
-                  </RadioGroup>
-                </div>`;
-        } else {
-          return `                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    ${field.label}
-                  </label>
-                  <Input
-                    type="${field.type === "number" ? "number" : "text"}"
-                    value={updated${fieldName}}
-                    onChange={(e) => setUpdated${fieldName}(${
-            field.type === "number"
-              ? "Number(e.target.value)"
-              : "e.target.value"
-          })}
-                  />
-                </div>`;
-        }
-      })
-      .join("\n\n");
-  };
-
   const generateBackendFields = () => {
     const insertFields = fields.map((f) => f.name).join(", ");
     const insertPlaceholders = fields.map((_, i) => `$${i + 1}`).join(", ");
@@ -690,36 +607,40 @@ const CodeGenerationPage = () => {
     const mainComponent = `"use client";
 
 import React from "react";
-import Add${entityUpper} from "./components/add-${entityLower}";
+import ${entityUpper}Form from "./components/${entityLower}-form";
 import List${entityUpper} from "./components/list-${entityLower}";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { PackagePlus } from "lucide-react";
 
 const ${entityUpper}Page = () => {
-  const [open, setOpen] = React.useState(false);
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [editData, setEditData] = React.useState(null);
+  
+  const handleOpenAdd = () => {
+    setEditData(null);
+    setFormOpen(true);
+  };
+
+  const handleOpenEdit = (data) => {
+    setEditData(data);
+    setFormOpen(true);
+  };
+
+  const handleCloseForm = () => {
+    setFormOpen(false);
+    setEditData(null);
+  };
   
   return (
     <div>
-        <Dialog open={open} onOpenChange={setOpen} modal={true}>
-          <DialogTrigger asChild></DialogTrigger>
-          <DialogContent className="w-4xl">
-            <DialogHeader>
-              <div className="flex items-center gap-2 mb-6">
-                <PackagePlus className="w-6 h-6 text-primary" />
-                <h2 className="text-2xl font-semibold text-primary">
-                  Add New ${entityUpper}
-                </h2>
-              </div>
-            </DialogHeader>
-            <Add${entityUpper} setOpen={setOpen} />
-          </DialogContent>
-        </Dialog>
-      <List${entityUpper} setOpen={setOpen} />
+      <${entityUpper}Form 
+        open={formOpen} 
+        onOpenChange={setFormOpen}
+        editData={editData}
+        onClose={handleCloseForm}
+      />
+      <List${entityUpper} 
+        onOpenAdd={handleOpenAdd}
+        onOpenEdit={handleOpenEdit}
+      />
     </div>
   );
 };
@@ -731,6 +652,7 @@ export default ${entityUpper}Page;`;
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useEffect } from "react";
 import {
   Form,
   FormControl,
@@ -739,6 +661,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -751,18 +679,24 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { useAdd${entityUpper}Mutation } from "../service/mutation";
+import { PackagePlus, Edit } from "lucide-react";
+import { useAdd${entityUpper}Mutation, useUpdate${entityUpper}Mutation } from "../service/mutation";
 import { toast } from "sonner";
 
 ${generateZodSchema()}
 
 type ${entityUpper}FormData = z.infer<typeof ${entityLower}Schema>;
 
-const Add${entityUpper} = ({
-  setOpen,
-}: {
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}) => {
+interface ${entityUpper}FormProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editData?: any;
+  onClose: () => void;
+}
+
+const ${entityUpper}Form = ({ open, onOpenChange, editData, onClose }: ${entityUpper}FormProps) => {
+  const isEditing = !!editData;
+  
   const form = useForm<${entityUpper}FormData>({
     resolver: zodResolver(${entityLower}Schema),
     defaultValues: {
@@ -779,17 +713,58 @@ const Add${entityUpper} = ({
     },
   });
 
-  const { mutate: add${entityUpper}, isPending } = useAdd${entityUpper}Mutation();
+  const { mutate: add${entityUpper}, isPending: isAdding } = useAdd${entityUpper}Mutation();
+  const { mutate: update${entityUpper}, isPending: isUpdating } = useUpdate${entityUpper}Mutation();
+
+  // Reset form when dialog opens/closes or editData changes
+  useEffect(() => {
+    if (open) {
+      if (editData) {
+        // Populate form with edit data
+        form.reset({
+          ${fields
+            .map((f) => {
+              if (f.type === "number")
+                return `${f.name}: editData.${f.name} || 0`;
+              if (f.type === "select") return `${f.name}: editData.${f.name}`;
+              if (f.type === "boolean")
+                return `${f.name}: editData.${f.name} || false`;
+              return `${f.name}: editData.${f.name} || ""`;
+            })
+            .join(",\n          ")}
+        });
+      } else {
+        // Reset to default values for add mode
+        form.reset({
+          ${fields
+            .map((f) => {
+              if (f.type === "number") return `${f.name}: 0`;
+              if (f.type === "select") return `${f.name}: undefined`;
+              if (f.type === "boolean")
+                return `${f.name}: ${f.defaultValue === "true"}`;
+              if (f.type === "radio") return `${f.name}: ""`;
+              return `${f.name}: ""`;
+            })
+            .join(",\n          ")}
+        });
+      }
+    }
+  }, [open, editData, form]);
 
   const onSubmit = async (data: ${entityUpper}FormData) => {
     try {
+      const operation = isEditing ? update${entityUpper} : add${entityUpper};
+      const operationData = isEditing 
+        ? { ...data, item_id: editData.${primaryKey} } 
+        : data;
+
       toast.promise(
         new Promise((resolve, reject) => {
-          add${entityUpper}(data, {
+          operation(operationData, {
             onSuccess: () => {
               form.reset();
-              resolve("${entityUpper} added successfully");
-              setOpen(false);
+              onClose();
+              resolve(isEditing ? "${entityUpper} updated successfully" : "${entityUpper} added successfully");
             },
             onError: (error) => {
               reject(error.message);
@@ -797,9 +772,9 @@ const Add${entityUpper} = ({
           });
         }),
         {
-          loading: "Adding ${entityLower}...",
-          success: "${entityUpper} added successfully",
-          error: "Failed to add ${entityLower}",
+          loading: isEditing ? "Updating ${entityLower}..." : "Adding ${entityLower}...",
+          success: isEditing ? "${entityUpper} updated successfully" : "${entityUpper} added successfully",
+          error: isEditing ? "Failed to update ${entityLower}" : "Failed to add ${entityLower}",
         }
       );
     } catch (error) {
@@ -807,40 +782,87 @@ const Add${entityUpper} = ({
     }
   };
 
-  return (
-    <div className="bg-white rounded-lg p-0">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            ${generateFormFields()}
-          </div>
+  const handleReset = () => {
+    if (isEditing && editData) {
+      form.reset({
+        ${fields
+          .map((f) => {
+            if (f.type === "number")
+              return `${f.name}: editData.${f.name} || 0`;
+            if (f.type === "select") return `${f.name}: editData.${f.name}`;
+            if (f.type === "boolean")
+              return `${f.name}: editData.${f.name} || false`;
+            return `${f.name}: editData.${f.name} || ""`;
+          })
+          .join(",\n        ")}
+      });
+    } else {
+      form.reset();
+    }
+  };
 
-          <div className="flex justify-end gap-4">
-            <Button
-              className="cursor-pointer"
-              type="button"
-              variant="outline"
-              onClick={() => form.reset()}
-            >
-              Reset
-            </Button>
-            <Button
-              className="cursor-pointer"
-              type="submit"
-              disabled={form.formState.isSubmitting || isPending}
-            >
-              {form.formState.isSubmitting || isPending
-                ? "Adding..."
-                : "Add ${entityUpper}"}
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
+  const isPending = isAdding || isUpdating;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            <div className="flex items-center gap-2">
+              {isEditing ? (
+                <Edit className="w-6 h-6 text-primary" />
+              ) : (
+                <PackagePlus className="w-6 h-6 text-primary" />
+              )}
+              <h2 className="text-2xl font-semibold text-primary">
+                {isEditing ? "Edit ${entityUpper}" : "Add New ${entityUpper}"}
+              </h2>
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="bg-white rounded-lg p-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                ${generateFormFields()}
+              </div>
+
+              <div className="flex justify-end gap-4 pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleReset}
+                  disabled={isPending}
+                >
+                  Reset
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={onClose}
+                  disabled={isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={form.formState.isSubmitting || isPending}
+                >
+                  {form.formState.isSubmitting || isPending
+                    ? (isEditing ? "Updating..." : "Adding...")
+                    : (isEditing ? "Update ${entityUpper}" : "Add ${entityUpper}")}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
-export default Add${entityUpper};`;
+export default ${entityUpper}Form;`;
 
     const listComponent = `import { useState } from "react";
 import { useGet${entityUpper} } from "../service/query";
@@ -850,7 +872,6 @@ import {
   ChevronRight,
   Trash,
   Edit2,
-  PackagePlus,
 } from "lucide-react";
 import {
   Table,
@@ -861,9 +882,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -873,10 +891,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MdAdd } from "react-icons/md";
-import {
-  useDelete${entityUpper}Mutation,
-  useUpdate${entityUpper}Mutation,
-} from "../service/mutation";
+import { useDelete${entityUpper}Mutation } from "../service/mutation";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -887,90 +902,25 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { AlertDialogHeader } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-const List${entityUpper} = ({ setOpen }) => {
+interface List${entityUpper}Props {
+  onOpenAdd: () => void;
+  onOpenEdit: (data: any) => void;
+}
+
+const List${entityUpper} = ({ onOpenAdd, onOpenEdit }: List${entityUpper}Props) => {
   const [page, setPage] = useState(1);
-  const [openEdit, setOpenEdit] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-
   const limit = 10;
-
-  ${fields
-    .map(
-      (f) =>
-        `const [updated${
-          f.name.charAt(0).toUpperCase() + f.name.slice(1)
-        }, setUpdated${
-          f.name.charAt(0).toUpperCase() + f.name.slice(1)
-        }] = useState(${f.type === "boolean" ? "false" : '""'});`
-    )
-    .join("\n  ")}
 
   const { data: ${entityLower}Data } = useGet${entityUpper}(page, limit, false);
   const { mutate: delete${entityUpper} } = useDelete${entityUpper}Mutation();
-  const { mutate: update${entityUpper} } = useUpdate${entityUpper}Mutation();
   const totalPages = Math.ceil(${entityLower}Data?.total / limit);
 
-  const handleEdit = (item) => {
-    setSelectedItem(item);
-    ${fields
-      .map(
-        (f) =>
-          `setUpdated${f.name.charAt(0).toUpperCase() + f.name.slice(1)}(item.${
-            f.name
-          });`
-      )
-      .join("\n    ")}
-    setOpenEdit(true);
+  const handleEdit = (item: any) => {
+    onOpenEdit(item);
   };
 
-  const handleUpdate = () => {
-    if (!selectedItem) return;
-
-    toast.promise(
-      new Promise<void>((resolve, reject) => {
-        update${entityUpper}(
-          {
-            ${fields
-              .map(
-                (f) =>
-                  `${f.name}: updated${
-                    f.name.charAt(0).toUpperCase() + f.name.slice(1)
-                  } || selectedItem.${f.name}`
-              )
-              .join(",\n            ")},
-            item_id: selectedItem.${primaryKey},
-          },
-          {
-            onSuccess: () => {
-              setOpenEdit(false);
-              resolve();
-            },
-            onError: (error) => {
-              console.log(error);
-              reject(error);
-            },
-          }
-        );
-      }),
-      {
-        loading: "Updating ${entityLower}...",
-        success: "${entityUpper} updated successfully!",
-        error: "Failed to update ${entityLower}",
-      }
-    );
-  };
-
-  const handleDelete = (itemId) => {
+  const handleDelete = (itemId: string) => {
     toast.promise(
       new Promise<void>((resolve, reject) => {
         delete${entityUpper}(itemId, {
@@ -995,135 +945,109 @@ const List${entityUpper} = ({ setOpen }) => {
             <CardTitle className="text-primary">${entityUpper} Items</CardTitle>
           </div>
           <div>
-              <Button variant="outline" onClick={() => setOpen(true)}>
-                <MdAdd className="h-5 w-5 text-primary mr-2" />
-                Add ${entityUpper}
-              </Button>
+            <Button variant="outline" onClick={onOpenAdd}>
+              <MdAdd className="h-5 w-5 text-primary mr-2" />
+              Add ${entityUpper}
+            </Button>
           </div>
         </div>
       </CardHeader>
      
-        <>
-          <CardContent className="p-5">
-            {${entityLower}Data?.data?.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                <Package className="h-12 w-12 text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900">
-                  No ${entityLower} items
-                </h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  Get started by adding your first ${entityLower} item.
-                </p>
-              </div>
-            ) : (
-              <div className="">
-                <Table className="rounded-xl overflow-hidden">
-                  <TableHeader className="bg-primary">
-                    <TableRow>
-                      ${generateTableHeaders()}
-                      <TableHead className="text-center text-white">
-                        Action
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="bg-table-body">
-                    {${entityLower}Data &&
-                      ${entityLower}Data?.data?.map((item) => {
-                        return (
-                          <TableRow
-                            key={item.${primaryKey}}
-                            className="hover:bg-table-body-hover"
-                          >
-                            ${generateTableCells()}
-                            <TableCell className="text-center items-center justify-center flex gap-5">
-                                <Edit2
-                                  className="h-4 w-4 text-blue-600 cursor-pointer"
-                                  onClick={() => handleEdit(item)}
-                                />
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Trash className="h-4 w-4 text-red-600 cursor-pointer" />
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <AlertDialogHeader>
-                                      <DialogTitle>Are you sure?</DialogTitle>
-                                      <DialogDescription>
-                                        This will permanently delete the
-                                        ${entityLower} and its activity from the
-                                        database.
-                                      </DialogDescription>
-                                    </AlertDialogHeader>
-                                    <DialogFooter>
-                                      <Button
-                                        variant="destructive"
-                                        className="cursor-pointer"
-                                        onClick={() => handleDelete(item.${primaryKey})}
-                                      >
-                                        Delete
-                                      </Button>
-                                    </DialogFooter>
-                                  </DialogContent>
-                                </Dialog>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="bg-gray-50">
-            <div className="flex justify-between items-center p-4 border-t w-full">
-              <Button
-                variant="outline"
-                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                disabled={page === 1}
-              >
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Previous
-              </Button>
-              <span className="text-sm">
-                Page {page} of {totalPages || 1}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setPage((prev) => (prev < totalPages ? prev + 1 : prev))
-                }
-                disabled={page === totalPages}
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-2" />
-              </Button>
-            </div>
-          </CardFooter>
-        </>
-
-      <Dialog open={openEdit} onOpenChange={setOpenEdit}>
-        <DialogContent>
-          <AlertDialogHeader>
-            <DialogTitle>
-              <div className="flex items-center gap-2 mb-6">
-                <PackagePlus className="w-6 h-6 text-primary" />
-                <h2 className="text-2xl font-semibold text-primary">
-                  Edit ${entityUpper}
-                </h2>
-              </div>
-            </DialogTitle>
-            <DialogDescription>
-              <div className="space-y-4">
-${generateEditFields()}
-              </div>
-            </DialogDescription>
-          </AlertDialogHeader>
-          <DialogFooter>
-            <Button onClick={handleUpdate} className="cursor-pointer">
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CardContent className="p-5">
+        {${entityLower}Data?.data?.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <Package className="h-12 w-12 text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900">
+              No ${entityLower} items
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Get started by adding your first ${entityLower} item.
+            </p>
+          </div>
+        ) : (
+          <div className="">
+            <Table className="rounded-xl overflow-hidden">
+              <TableHeader className="bg-primary">
+                <TableRow>
+                  ${generateTableHeaders()}
+                  <TableHead className="text-center text-white">
+                    Action
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="bg-table-body">
+                {${entityLower}Data &&
+                  ${entityLower}Data?.data?.map((item: any) => {
+                    return (
+                      <TableRow
+                        key={item.${primaryKey}}
+                        className="hover:bg-table-body-hover"
+                      >
+                        ${generateTableCells()}
+                        <TableCell className="text-center items-center justify-center flex gap-5">
+                          <Edit2
+                            className="h-4 w-4 text-blue-600 cursor-pointer hover:text-blue-800"
+                            onClick={() => handleEdit(item)}
+                          />
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Trash className="h-4 w-4 text-red-600 cursor-pointer hover:text-red-800" />
+                            </DialogTrigger>
+                            <DialogContent>
+                              <AlertDialogHeader>
+                                <DialogTitle>Are you sure?</DialogTitle>
+                                <DialogDescription>
+                                  This will permanently delete the
+                                  ${entityLower} and its data from the
+                                  database.
+                                </DialogDescription>
+                              </AlertDialogHeader>
+                              <DialogFooter>
+                                <Button
+                                  variant="destructive"
+                                  className="cursor-pointer"
+                                  onClick={() => handleDelete(item.${primaryKey})}
+                                >
+                                  Delete
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+      
+      <CardFooter className="bg-gray-50">
+        <div className="flex justify-between items-center p-4 border-t w-full">
+          <Button
+            variant="outline"
+            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            disabled={page === 1}
+          >
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Previous
+          </Button>
+          <span className="text-sm">
+            Page {page} of {totalPages || 1}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() =>
+              setPage((prev) => (prev < totalPages ? prev + 1 : prev))
+            }
+            disabled={page === totalPages}
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+      </CardFooter>
     </Card>
   );
 };
@@ -1828,7 +1752,8 @@ export default ${entityUpper}`;
                     </div>
                     <div>
                       • {frontendPath}/{entityName.toLowerCase() || "entity"}
-                      /components/add-{entityName.toLowerCase() || "entity"}.tsx
+                      /components/{entityName.toLowerCase() || "entity"}
+                      -form.tsx
                     </div>
                     <div>
                       • {frontendPath}/{entityName.toLowerCase() || "entity"}
@@ -1858,7 +1783,7 @@ export default ${entityUpper}`;
           <Tabs defaultValue="main" className="w-full">
             <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="main">Main Page</TabsTrigger>
-              <TabsTrigger value="add">Add Component</TabsTrigger>
+              <TabsTrigger value="form">Form Component</TabsTrigger>
               <TabsTrigger value="list">List Component</TabsTrigger>
               <TabsTrigger value="queries">Queries</TabsTrigger>
               <TabsTrigger value="mutations">Mutations</TabsTrigger>
@@ -1867,9 +1792,9 @@ export default ${entityUpper}`;
 
             {Object.entries({
               main: { code: generatedCode.mainComponent, filename: `page.tsx` },
-              add: {
+              form: {
                 code: generatedCode.addComponent,
-                filename: `add-${entityName.toLowerCase()}.tsx`,
+                filename: `${entityName.toLowerCase()}-form.tsx`,
               },
               list: {
                 code: generatedCode.listComponent,
