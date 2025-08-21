@@ -23,7 +23,6 @@ router.post("/replace-files", async (req, res) => {
 
     logger.info(`Starting file replacement for entity: ${entityName}`);
 
-
     if (
       !entityName ||
       !frontendPath ||
@@ -287,4 +286,148 @@ router.get("/health", (req, res) => {
   });
 });
 
+
+router.post("/replace-files-master-detail", async (req, res) => {
+  try {
+    const {
+      parentEntityName,
+      childEntityName,
+      parentTableName,
+      childTableName,
+      frontendPath,
+      backendPath,
+      generatedCode,
+      files,
+    } = req.body;
+
+    logger.info(
+      `Starting master-detail file replacement for entities: ${parentEntityName} -> ${childEntityName}`
+    );
+
+    if (
+      !parentEntityName ||
+      !childEntityName ||
+      !frontendPath ||
+      !backendPath ||
+      !files ||
+      !Array.isArray(files)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Missing required fields: parentEntityName, childEntityName, frontendPath, backendPath, or files array",
+      });
+    }
+
+    const cleanFrontendPath = cleanPath(frontendPath);
+    const cleanBackendPath = cleanPath(backendPath);
+
+    if (!validatePath(cleanFrontendPath) || !validatePath(cleanBackendPath)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid file paths detected",
+      });
+    }
+
+    const createdFiles = [];
+    const errors = [];
+
+    for (const file of files) {
+      try {
+        const { filename, path: relativePath, content, type } = file;
+
+        const cleanRelativePath = cleanPath(relativePath);
+
+        const fullPath = path.resolve(cleanRelativePath, filename);
+        const dirPath = path.dirname(fullPath);
+
+        logger.info(`Creating ${type} file: ${fullPath}`);
+        logger.info(`Directory path: ${dirPath}`);
+
+        await ensureDirectoryExists(dirPath);
+
+        await fs.writeFile(fullPath, content, "utf8");
+
+        createdFiles.push({
+          filename,
+          path: fullPath,
+          type,
+          status: "created",
+          size: Buffer.byteLength(content, "utf8"),
+        });
+
+        logger.info(`✅ Successfully created ${type} file: ${fullPath}`);
+      } catch (fileError) {
+        logger.error(`❌ Error creating file ${file.filename}:`, fileError);
+        errors.push({
+          filename: file.filename,
+          error: fileError.message,
+          path: file.path,
+          originalPath: file.path,
+        });
+      }
+    }
+
+    // Response
+    if (errors.length === 0) {
+      logger.info(
+        `✅ Successfully completed master-detail file replacement for ${parentEntityName} -> ${childEntityName}`
+      );
+      res.status(200).json({
+        success: true,
+        message: `Successfully created ${createdFiles.length} master-detail files for ${parentEntityName} -> ${childEntityName}`,
+        data: {
+          parentEntityName,
+          childEntityName,
+          parentTableName,
+          childTableName,
+          frontendPath: cleanFrontendPath,
+          backendPath: cleanBackendPath,
+          createdFiles,
+          summary: {
+            totalFiles: createdFiles.length,
+            frontendFiles: createdFiles.filter((f) => f.type === "frontend")
+              .length,
+            backendFiles: createdFiles.filter((f) => f.type === "backend")
+              .length,
+            totalSize: createdFiles.reduce((sum, f) => sum + f.size, 0),
+            parentEntity: parentEntityName,
+            childEntity: childEntityName,
+          },
+        },
+      });
+    } else {
+      logger.warn(
+        `⚠️ Partially completed master-detail file replacement for ${parentEntityName} -> ${childEntityName}: ${errors.length} errors`
+      );
+      res.status(207).json({
+        // 207 Multi-Status
+        success: true,
+        message: `Partially completed: ${createdFiles.length} files created, ${errors.length} errors`,
+        data: {
+          parentEntityName,
+          childEntityName,
+          parentTableName,
+          childTableName,
+          createdFiles,
+          errors,
+          summary: {
+            successCount: createdFiles.length,
+            errorCount: errors.length,
+          },
+        },
+      });
+    }
+  } catch (error) {
+    logger.error("Error in replace-files-master-detail endpoint:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while replacing master-detail files",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+});
 module.exports = router;
