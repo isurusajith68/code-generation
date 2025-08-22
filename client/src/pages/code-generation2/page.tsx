@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import DatabaseIntegration from "./components/DatabaseIntegration";
 import ProjectConfiguration from "./components/ProjectConfiguration";
 import TableConfiguration from "./components/TableConfiguration";
+import TableSettings from "./components/TableSettings";
 import CodeDisplay from "./components/CodeDisplay";
 
 import {
@@ -25,6 +26,20 @@ interface Field {
   selectOptions: string;
   radioOptions: string;
   defaultValue: string;
+  displayInTable: boolean;
+  searchable: boolean;
+  sortable: boolean;
+}
+
+interface TableConfig {
+  displayFields: string[];
+  searchableFields: string[];
+  sortableFields: string[];
+  defaultSort: string;
+  defaultSortOrder: "asc" | "desc";
+  pageSize: number;
+  enableSearch: boolean;
+  enablePagination: boolean;
 }
 
 interface TableInfo {
@@ -82,6 +97,17 @@ const MasterDetailCodeGenerationPage = () => {
 
   const [showGenerated, setShowGenerated] = useState(false);
   const [uiMode, setUiMode] = useState<"dialog" | "page">("dialog");
+
+  const [parentTableConfig, setParentTableConfig] = useState<TableConfig>({
+    displayFields: [],
+    searchableFields: [],
+    sortableFields: [],
+    defaultSort: "",
+    defaultSortOrder: "asc",
+    pageSize: 10,
+    enableSearch: true,
+    enablePagination: true,
+  });
 
   const generateBackendFields = (
     parentFields: Field[],
@@ -187,7 +213,8 @@ const MasterDetailCodeGenerationPage = () => {
       parentEntityUpper,
       parentEntityLower,
       childEntityLower,
-      uiMode
+      uiMode,
+      parentTableConfig
     );
     const detailsComponent = generateDetailsComponent(
       parentTable,
@@ -810,7 +837,8 @@ export default ${parentEntityUpper}Form;`;
     parentEntityUpper: string,
     parentEntityLower: string,
     childEntityLower: string,
-    uiMode: "dialog" | "page"
+    uiMode: "dialog" | "page",
+    tableConfig: TableConfig
   ) => {
     return `import { useState } from "react";
 ${uiMode === "page" ? 'import { useNavigate } from "react-router";' : ""}
@@ -839,6 +867,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+${
+  tableConfig.enableSearch
+    ? 'import { Input } from "@/components/ui/input";'
+    : ""
+}
 import {
   AlertDialog,
   AlertDialogAction,
@@ -877,13 +910,26 @@ const List${parentEntityUpper} = ({
   setSelectedParentId,
 }: List${parentEntityUpper}Props) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [searchTerm, setSearchTerm] = useState("");
+  ${
+    tableConfig.sortableFields.length > 0
+      ? `const [sortField, setSortField] = useState("${
+          tableConfig.defaultSort || tableConfig.sortableFields[0] || ""
+        }");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("${
+    tableConfig.defaultSortOrder || "asc"
+  }");`
+      : ""
+  }
+  const itemsPerPage = ${tableConfig.pageSize || 10};
 ${uiMode === "page" ? "  const navigate = useNavigate();\n" : ""}
   const {
     data: ${parentEntityLower}Data,
     isLoading,
     error,
-  } = useGet${parentEntityUpper}(currentPage, itemsPerPage);
+  } = useGet${parentEntityUpper}(currentPage, itemsPerPage, searchTerm${
+      tableConfig.sortableFields.length > 0 ? ", sortField, sortOrder" : ""
+    });
 
   const { mutate: delete${parentEntityUpper} } = useDelete${parentEntityUpper}Mutation();
 
@@ -911,6 +957,19 @@ ${uiMode === "page" ? "  const navigate = useNavigate();\n" : ""}
     setSelectedParentId(id);
     setDetailsOpen(true);
   };
+
+  ${
+    tableConfig.sortableFields.length > 0
+      ? `const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };`
+      : ""
+  }
 
   if (isLoading) {
     return (
@@ -958,10 +1017,26 @@ ${uiMode === "page" ? "  const navigate = useNavigate();\n" : ""}
         </Button>
       </CardHeader>
       <CardContent>
+        ${
+          tableConfig.enableSearch
+            ? `<div className="mb-4">
+          <Input
+            placeholder="Search ${parentEntityLower}s..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>`
+            : ""
+        }
         <Table>
           <TableHeader className="bg-primary text-center border text-white hover:bg-primary-hover hover:text-white">
             <TableRow>
-              ${generateTableHeaders(parentTable.fields)}
+              ${generateTableHeaders(
+                parentTable.fields.filter((f) =>
+                  tableConfig.displayFields.includes(f.name)
+                )
+              )}
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -969,6 +1044,9 @@ ${uiMode === "page" ? "  const navigate = useNavigate();\n" : ""}
             {${parentEntityLower}Data?.data?.map((item: any) => (
               <TableRow key={item.${parentTable.primaryKey || "id"}}>
                 ${parentTable.fields
+                  .filter((field) =>
+                    tableConfig.displayFields.includes(field.name)
+                  )
                   .map((field) => {
                     if (field.type === "boolean") {
                       return `<TableCell>
@@ -1031,7 +1109,9 @@ ${uiMode === "page" ? "  const navigate = useNavigate();\n" : ""}
           </TableBody>
         </Table>
 
-        {totalPages > 1 && (
+        ${
+          tableConfig.enablePagination
+            ? `{totalPages > 1 && (
           <div className="mt-4">
             <Pagination>
               <PaginationContent>
@@ -1061,7 +1141,9 @@ ${uiMode === "page" ? "  const navigate = useNavigate();\n" : ""}
               </PaginationContent>
             </Pagination>
           </div>
-        )}
+        )}`
+            : ""
+        }
       </CardContent>
     </Card>
   );
@@ -1230,16 +1312,29 @@ import axios from "axios";
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 // Get all ${parentEntityLower}s with pagination
-export const useGet${parentEntityUpper} = (page: number = 1, limit: number = 10) => {
+export const useGet${parentEntityUpper} = (
+  page: number = 1, 
+  limit: number = 10, 
+  search: string = "",
+  sortField: string = "",
+  sortOrder: "asc" | "desc" = "asc"
+) => {
   return useQuery({
-    queryKey: ["${parentEntityLower}s", page, limit],
+    queryKey: ["${parentEntityLower}s", page, limit, search, sortField, sortOrder],
     queryFn: async () => {
-      const response = await axios.get(
-        \`\${API_BASE_URL}/${parentEntityLower}s/get-all?page=\${page}&limit=\${limit}\`,
-        {
-          withCredentials: true,
-        }
-      );
+      let url = \`\${API_BASE_URL}/${parentEntityLower}s/get-all?page=\${page}&limit=\${limit}\`;
+      
+      if (search) {
+        url += \`&search=\${encodeURIComponent(search)}\`;
+      }
+      
+      if (sortField) {
+        url += \`&sortField=\${sortField}&sortOrder=\${sortOrder}\`;
+      }
+      
+      const response = await axios.get(url, {
+        withCredentials: true,
+      });
       return response.data;
     },
   });
@@ -1345,22 +1440,37 @@ ${parentEntityUpper}.get('/get-all', async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
+    const search = req.query.search || '';
+    const sortField = req.query.sortField || '${parentTable.primaryKey || "id"}';
+    const sortOrder = req.query.sortOrder || 'asc';
+
+    // Build WHERE clause for search
+    let whereClause = '';
+    let searchParams = [];
+    if (search) {
+      const searchableFields = [${parentTable.fields
+        .filter(field => field.searchable)
+        .map(field => `"${field.name}"`)
+        .join(', ')}];
+      
+      if (searchableFields.length > 0) {
+        whereClause = 'WHERE ' + searchableFields.map(field => \`\${field} ILIKE $\${searchParams.length + 1}\`).join(' OR ');
+        searchParams.push(\`%\${search}%\`);
+      }
+    }
 
     // Get total count
-    const countResult = await pool.query('SELECT COUNT(*) FROM ${
-      parentTable.tableName
-    }');
+    const countQuery = \`SELECT COUNT(*) FROM ${parentTable.tableName} \${whereClause}\`;
+    const countResult = await pool.query(countQuery, searchParams);
     const total = parseInt(countResult.rows[0].count);
 
-    // Get ${parentEntityLower}s with pagination
-    const result = await pool.query(
-      'SELECT ${parentTable.primaryKey || "id"},${
+    // Get ${parentEntityLower}s with pagination, search, and sorting
+    const selectQuery = \`SELECT ${parentTable.primaryKey || "id"},${
       backendFields.parent.selectFields
-    } FROM ${parentTable.tableName} ORDER BY ${
-      parentTable.primaryKey || "id"
-    } LIMIT $1 OFFSET $2',
-      [limit, offset]
-    );
+    } FROM ${parentTable.tableName} \${whereClause} ORDER BY "\${sortField}" \${sortOrder.toUpperCase()} LIMIT $\${searchParams.length + 1} OFFSET $\${searchParams.length + 2}\`;
+    
+    const queryParams = [...searchParams, limit, offset];
+    const result = await pool.query(selectQuery, queryParams);
 
     res.json({
       data: result.rows,
@@ -1845,6 +1955,13 @@ ${generatedCode.routingHelper.libraryImports}`,
             setParentTable={setParentTable}
             childTable={childTable}
             setChildTable={setChildTable}
+          />
+
+          <TableSettings
+            parentTable={parentTable}
+            setParentTable={setParentTable}
+            parentTableConfig={parentTableConfig}
+            setParentTableConfig={setParentTableConfig}
           />
 
           <div className="space-y-4">

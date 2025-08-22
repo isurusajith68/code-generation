@@ -35,6 +35,9 @@ interface Field {
   selectOptions: string;
   radioOptions: string;
   defaultValue: string;
+  displayInTable: boolean;
+  searchable: boolean;
+  sortable: boolean;
 }
 
 interface TableInfo {
@@ -146,8 +149,6 @@ const DatabaseIntegration: React.FC<DatabaseIntegrationProps> = ({
       return;
     }
 
-    const excludeColumns = ["id"];
-
     const newFields = columns.map((col) => {
       let fieldType = "text";
 
@@ -197,6 +198,12 @@ const DatabaseIntegration: React.FC<DatabaseIntegrationProps> = ({
           fieldType === "select" ? "Option1, Option2, Option3" : "",
         radioOptions: fieldType === "radio" ? "Active, Inactive" : "",
         defaultValue: fieldType === "boolean" ? "false" : "",
+        displayInTable:
+          col.column_name !== "id" &&
+          col.column_name !== "created_at" &&
+          col.column_name !== "updated_at",
+        searchable: ["text", "textarea", "email"].includes(fieldType),
+        sortable: true,
       };
     });
 
