@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Code, Copy, Download } from "lucide-react";
+import { Plus, Trash2, Code, Copy, Download, Table } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -25,6 +25,20 @@ interface Field {
   selectOptions: string;
   radioOptions: string;
   defaultValue: string;
+  displayInTable: boolean;
+  searchable: boolean;
+  sortable: boolean;
+}
+
+interface TableConfig {
+  displayFields: string[];
+  searchableFields: string[];
+  sortableFields: string[];
+  defaultSort: string;
+  defaultSortOrder: "asc" | "desc";
+  pageSize: number;
+  enableSearch: boolean;
+  enablePagination: boolean;
 }
 
 interface GeneratedCode {
@@ -72,6 +86,39 @@ const CodeGenerationPage = () => {
   const [tableColumns, setTableColumns] = useState<TableColumn[]>([]);
   const [isLoadingTables, setIsLoadingTables] = useState(false);
   const [isLoadingColumns, setIsLoadingColumns] = useState(false);
+
+  const [tableConfig, setTableConfig] = useState<TableConfig>({
+    displayFields: [],
+    searchableFields: [],
+    sortableFields: [],
+    defaultSort: "",
+    defaultSortOrder: "asc",
+    pageSize: 10,
+    enableSearch: true,
+    enablePagination: true,
+  });
+
+  // Update table configuration when fields change
+  useEffect(() => {
+    const displayFields = fields
+      .filter((f) => f.displayInTable)
+      .map((f) => f.name);
+    const searchableFields = fields
+      .filter((f) => f.searchable)
+      .map((f) => f.name);
+    const sortableFields = fields.filter((f) => f.sortable).map((f) => f.name);
+
+    setTableConfig((prev) => ({
+      ...prev,
+      displayFields,
+      searchableFields,
+      sortableFields,
+      defaultSort:
+        prev.defaultSort && sortableFields.includes(prev.defaultSort)
+          ? prev.defaultSort
+          : sortableFields[0] || "",
+    }));
+  }, [fields]);
 
   const loadTables = async (schema: string) => {
     if (!schema) return;
@@ -168,6 +215,11 @@ const CodeGenerationPage = () => {
           fieldType === "select" ? "Option1, Option2, Option3" : "",
         radioOptions: fieldType === "radio" ? "Active, Inactive" : "",
         defaultValue: fieldType === "boolean" ? "false" : "",
+        displayInTable: true,
+        searchable: ["varchar", "text", "char"].some((type) =>
+          col.data_type.toLowerCase().includes(type)
+        ),
+        sortable: true,
       };
     });
 
@@ -313,6 +365,9 @@ const CodeGenerationPage = () => {
         selectOptions: "",
         radioOptions: "",
         defaultValue: "",
+        displayInTable: true,
+        searchable: true,
+        sortable: true,
       },
     ]);
   };
@@ -556,6 +611,7 @@ const CodeGenerationPage = () => {
 
   const generateTableHeaders = () => {
     return fields
+      .filter((field) => field.displayInTable)
       .map(
         (field) =>
           `<TableHead className="text-center text-white">${field.label}</TableHead>`
@@ -565,6 +621,7 @@ const CodeGenerationPage = () => {
 
   const generateTableCells = () => {
     return fields
+      .filter((field) => field.displayInTable)
       .map((field) => {
         if (field.type === "select") {
           return `<TableCell className="text-center">{/* Add select display logic */}</TableCell>`;
@@ -872,6 +929,7 @@ import {
   ChevronRight,
   Trash,
   Edit2,
+  Search,
 } from "lucide-react";
 import {
   Table,
@@ -890,6 +948,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { MdAdd } from "react-icons/md";
 import { useDelete${entityUpper}Mutation } from "../service/mutation";
 import { toast } from "sonner";
@@ -910,9 +969,16 @@ interface List${entityUpper}Props {
 
 const List${entityUpper} = ({ onOpenAdd, onOpenEdit }: List${entityUpper}Props) => {
   const [page, setPage] = useState(1);
-  const limit = 10;
+  ${
+    tableConfig.enableSearch
+      ? 'const [searchTerm, setSearchTerm] = useState("");'
+      : ""
+  }
+  const limit = ${tableConfig.pageSize};
 
-  const { data: ${entityLower}Data } = useGet${entityUpper}(page, limit, false);
+  const { data: ${entityLower}Data } = useGet${entityUpper}(page, limit, ${
+      tableConfig.enableSearch ? "searchTerm" : "false"
+    });
   const { mutate: delete${entityUpper} } = useDelete${entityUpper}Mutation();
   const totalPages = Math.ceil(${entityLower}Data?.total / limit);
 
@@ -944,7 +1010,21 @@ const List${entityUpper} = ({ onOpenAdd, onOpenEdit }: List${entityUpper}Props) 
             <Package className="h-5 w-5 text-primary mr-2" />
             <CardTitle className="text-primary">${entityUpper} Items</CardTitle>
           </div>
-          <div>
+          <div className="flex items-center gap-3">
+            ${
+              tableConfig.enableSearch
+                ? `
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search ${entityLower}..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-64"
+              />
+            </div>`
+                : ""
+            }
             <Button variant="outline" onClick={onOpenAdd}>
               <MdAdd className="h-5 w-5 text-primary mr-2" />
               Add ${entityUpper}
@@ -1022,7 +1102,9 @@ const List${entityUpper} = ({ onOpenAdd, onOpenEdit }: List${entityUpper}Props) 
           </div>
         )}
       </CardContent>
-      
+      ${
+        tableConfig.enablePagination
+          ? `
       <CardFooter className="bg-gray-50">
         <div className="flex justify-between items-center p-4 border-t w-full">
           <Button
@@ -1047,7 +1129,9 @@ const List${entityUpper} = ({ onOpenAdd, onOpenEdit }: List${entityUpper}Props) 
             <ChevronRight className="h-4 w-4 ml-2" />
           </Button>
         </div>
-      </CardFooter>
+      </CardFooter>`
+          : ""
+      }
     </Card>
   );
 };
@@ -1060,15 +1144,25 @@ import Axios from "axios";
 export const useGet${entityUpper} = (
   page: number,
   limit: number,
+  ${tableConfig.enableSearch ? "searchTerm?: string," : ""}
   all${entityUpper}?: boolean
 ) => {
   const apiUrl = import.meta.env.VITE_API_URL;
 
   return useQuery({
-    queryKey: ["${entityLower}", page, limit],
+    queryKey: ["${entityLower}", page, limit${
+      tableConfig.enableSearch ? ", searchTerm" : ""
+    }],
     queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        all${entityUpper}: all${entityUpper}?.toString() || 'false',
+        ${tableConfig.enableSearch ? 'search: searchTerm || "",' : ""}
+      });
+      
       const response = await Axios.get(
-        \`\${apiUrl}/${entityUpper}/select-all-${entityLower}?page=\${page}&limit=\${limit}&all${entityUpper}=\${all${entityUpper}}\`,
+        \`\${apiUrl}/${entityUpper}/select-all-${entityLower}?\${params}\`,
         {
           withCredentials: true,
         }
@@ -1250,32 +1344,88 @@ ${entityUpper}.get("/select-all-${entityLower}", async (req, res) => {
   try {
     const pool = req.tenantPool;
     const propertyId = req.propertyId;
-    const { page = 1, limit = 10, all${entityUpper} = false } = req.query;
+    const { page = 1, limit = ${
+      tableConfig.pageSize
+    }, all${entityUpper} = false${
+      tableConfig.enableSearch ? ', search = ""' : ""
+    } } = req.query;
 
-    let query = \`SELECT * FROM ${tableName}\`;
+    console.log('Pagination params:', { page, limit, all${entityUpper} });
+
+    let query = \`SELECT ${fields
+      .filter((f) => f.displayInTable)
+      .map((f) => f.name)
+      .join(", ")} FROM ${tableName}\`;
     let queryParams = [];
+    let countQuery = \`SELECT COUNT(*) FROM ${tableName}\`;
+    let countParams = [];
 
-    if (!all${entityUpper}) {
-      const offset = (page - 1) * limit;
-      query += \` ORDER BY createdate DESC LIMIT $1 OFFSET $2\`;
-      queryParams.push(limit, offset);
+    ${
+      tableConfig.enableSearch
+        ? `
+    // Add search functionality
+    if (search && search.trim() !== '') {
+      const searchConditions = [${fields
+        .filter((f) => f.searchable)
+        .map((f, index) => `'${f.name} ILIKE $${index + 1}'`)
+        .join(", ")}].join(' OR ');
+      const whereClause = \` WHERE (\${searchConditions})\`;
+      query += whereClause;
+      countQuery += whereClause;
+      
+      // Add search parameters
+      const searchParam = \`%\${search}%\`;
+      ${fields
+        .filter((f) => f.searchable)
+        .map(() => `queryParams.push(searchParam);`)
+        .join("\n      ")}
+      ${fields
+        .filter((f) => f.searchable)
+        .map(() => `countParams.push(searchParam);`)
+        .join("\n      ")}
+    }`
+        : ""
+    }
+
+    // Always add ORDER BY and pagination unless all${entityUpper} is true
+    if (all${entityUpper} !== 'true' && all${entityUpper} !== true) {
+      ${
+        tableConfig.defaultSort
+          ? `query += \` ORDER BY ${
+              tableConfig.defaultSort
+            } ${tableConfig.defaultSortOrder.toUpperCase()}\`;`
+          : "query += ` ORDER BY ${primaryKey} DESC`;"
+      }
+      ${
+        tableConfig.enablePagination
+          ? `
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || ${tableConfig.pageSize};
+      const offset = (pageNum - 1) * limitNum;
+      query += \` LIMIT \${limitNum} OFFSET \${offset}\`;
+      console.log('Final query:', query);
+      console.log('Page:', pageNum, 'Limit:', limitNum, 'Offset:', offset);`
+          : ""
+      }
     }
 
     const result = await pool.query(query, queryParams);
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].count);
 
-    // Get total count for pagination
-    const countResult = await pool.query(
-      \`SELECT COUNT(*) FROM ${tableName}\`
-    );
+    console.log('Query result count:', result.rows.length);
+    console.log('Total count:', total);
 
     res.status(200).json({
       success: true,
       data: result.rows,
-      total: parseInt(countResult.rows[0].count),
+      total,
       page: parseInt(page),
       limit: parseInt(limit),
+      totalPages: Math.ceil(total / parseInt(limit))
     });
   } catch (err) {
+    console.error('Database error:', err);
     res.status(400).json({
       success: false,
       message: err.message,
@@ -1667,6 +1817,206 @@ export default ${entityUpper}`;
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Table Configuration Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Table className="h-5 w-5" />
+                  Table Configuration
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Display Fields */}
+              <div>
+                <Label className="text-sm font-medium mb-3 block">
+                  Display Fields in Table
+                </Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {fields.map((field) => (
+                    <div key={field.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`display-${field.id}`}
+                        checked={field.displayInTable}
+                        onChange={(e) =>
+                          updateField(
+                            field.id,
+                            "displayInTable",
+                            e.target.checked
+                          )
+                        }
+                        className="rounded border-gray-300"
+                      />
+                      <label
+                        htmlFor={`display-${field.id}`}
+                        className="text-sm text-gray-700"
+                      >
+                        {field.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Searchable Fields */}
+              <div>
+                <Label className="text-sm font-medium mb-3 block">
+                  Searchable Fields
+                </Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {fields.map((field) => (
+                    <div key={field.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`search-${field.id}`}
+                        checked={field.searchable}
+                        onChange={(e) =>
+                          updateField(field.id, "searchable", e.target.checked)
+                        }
+                        className="rounded border-gray-300"
+                      />
+                      <label
+                        htmlFor={`search-${field.id}`}
+                        className="text-sm text-gray-700"
+                      >
+                        {field.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sortable Fields */}
+              <div>
+                <Label className="text-sm font-medium mb-3 block">
+                  Sortable Fields
+                </Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {fields.map((field) => (
+                    <div key={field.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`sort-${field.id}`}
+                        checked={field.sortable}
+                        onChange={(e) =>
+                          updateField(field.id, "sortable", e.target.checked)
+                        }
+                        className="rounded border-gray-300"
+                      />
+                      <label
+                        htmlFor={`sort-${field.id}`}
+                        className="text-sm text-gray-700"
+                      >
+                        {field.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Table Settings */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Default Sort Field</Label>
+                  <select
+                    value={tableConfig.defaultSort}
+                    onChange={(e) =>
+                      setTableConfig({
+                        ...tableConfig,
+                        defaultSort: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select field...</option>
+                    {fields
+                      .filter((f) => f.sortable)
+                      .map((field) => (
+                        <option key={field.id} value={field.name}>
+                          {field.label}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Sort Order</Label>
+                  <select
+                    value={tableConfig.defaultSortOrder}
+                    onChange={(e) =>
+                      setTableConfig({
+                        ...tableConfig,
+                        defaultSortOrder: e.target.value as "asc" | "desc",
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Page Size</Label>
+                  <Input
+                    type="number"
+                    value={tableConfig.pageSize}
+                    onChange={(e) =>
+                      setTableConfig({
+                        ...tableConfig,
+                        pageSize: parseInt(e.target.value) || 10,
+                      })
+                    }
+                    min="1"
+                    max="100"
+                  />
+                </div>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="enable-search"
+                      checked={tableConfig.enableSearch}
+                      onChange={(e) =>
+                        setTableConfig({
+                          ...tableConfig,
+                          enableSearch: e.target.checked,
+                        })
+                      }
+                      className="rounded border-gray-300"
+                    />
+                    <label
+                      htmlFor="enable-search"
+                      className="text-sm text-gray-700"
+                    >
+                      Enable Search
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="enable-pagination"
+                      checked={tableConfig.enablePagination}
+                      onChange={(e) =>
+                        setTableConfig({
+                          ...tableConfig,
+                          enablePagination: e.target.checked,
+                        })
+                      }
+                      className="rounded border-gray-300"
+                    />
+                    <label
+                      htmlFor="enable-pagination"
+                      className="text-sm text-gray-700"
+                    >
+                      Enable Pagination
+                    </label>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
