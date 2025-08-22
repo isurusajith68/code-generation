@@ -1441,7 +1441,9 @@ ${parentEntityUpper}.get('/get-all', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
-    const sortField = req.query.sortField || '${parentTable.primaryKey || "id"}';
+    const sortField = req.query.sortField || '${
+      parentTable.primaryKey || "id"
+    }';
     const sortOrder = req.query.sortOrder || 'asc';
 
     // Build WHERE clause for search
@@ -1449,9 +1451,9 @@ ${parentEntityUpper}.get('/get-all', async (req, res) => {
     let searchParams = [];
     if (search) {
       const searchableFields = [${parentTable.fields
-        .filter(field => field.searchable)
-        .map(field => `"${field.name}"`)
-        .join(', ')}];
+        .filter((field) => field.searchable)
+        .map((field) => `"${field.name}"`)
+        .join(", ")}];
       
       if (searchableFields.length > 0) {
         whereClause = 'WHERE ' + searchableFields.map(field => \`\${field} ILIKE $\${searchParams.length + 1}\`).join(' OR ');
@@ -1460,14 +1462,18 @@ ${parentEntityUpper}.get('/get-all', async (req, res) => {
     }
 
     // Get total count
-    const countQuery = \`SELECT COUNT(*) FROM ${parentTable.tableName} \${whereClause}\`;
+    const countQuery = \`SELECT COUNT(*) FROM ${
+      parentTable.tableName
+    } \${whereClause}\`;
     const countResult = await pool.query(countQuery, searchParams);
     const total = parseInt(countResult.rows[0].count);
 
     // Get ${parentEntityLower}s with pagination, search, and sorting
     const selectQuery = \`SELECT ${parentTable.primaryKey || "id"},${
       backendFields.parent.selectFields
-    } FROM ${parentTable.tableName} \${whereClause} ORDER BY "\${sortField}" \${sortOrder.toUpperCase()} LIMIT $\${searchParams.length + 1} OFFSET $\${searchParams.length + 2}\`;
+    } FROM ${
+      parentTable.tableName
+    } \${whereClause} ORDER BY "\${sortField}" \${sortOrder.toUpperCase()} LIMIT $\${searchParams.length + 1} OFFSET $\${searchParams.length + 2}\`;
     
     const queryParams = [...searchParams, limit, offset];
     const result = await pool.query(selectQuery, queryParams);
