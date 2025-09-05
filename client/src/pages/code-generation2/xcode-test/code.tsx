@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Code, Copy, Download, Eye, Minus } from "lucide-react";
+import { Plus, Trash2, Code, Copy, Download, } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -333,7 +333,7 @@ const MasterDetailCodeGenerationPage = () => {
   const updateField = (
     id: number,
     key: keyof Field,
-    value: any,
+    value: string | number | boolean,
     isParent: boolean
   ) => {
     if (isParent) {
@@ -873,7 +873,7 @@ const Add${parentEntityUpper} = ({
                       <TableRow key={field.id}>
                         <TableCell className="font-medium">{index + 1}</TableCell>
                         ${childTable.fields
-                          .map((f, fieldIndex) => {
+                          .map((f,  ) => {
                             if (f.type === "boolean") {
                               return `<TableCell>
                           <FormField
