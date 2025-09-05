@@ -10,6 +10,7 @@ const healthRoutes = require("./routes/health-routes");
 
 const errorHandler = require("./middleware/error-handler");
 const requestLogger = require("./middleware/request-logger");
+const   systemAdminRouter  = require("./routes/system-admin-router");
 
 const app = express();
 
@@ -47,16 +48,17 @@ app.get("/", (req, res) => {
 
 app.use("/api/health", healthRoutes);
 app.use("/api/code-generation", codeGenerationRoutes);
+app.use("/api/sys", systemAdminRouter);
 
 app.use("*", (req, res) => {
   res.status(404).json({
     success: false,
     message: `Route ${req.originalUrl} not found`,
     availableRoutes: [
-      "GET /",
-      "GET /api/health",
-      "POST /api/code-generation/replace-files",
-      "GET /api/code-generation/project-structure",
+      // "GET /",
+      // "GET /api/health",
+      // "POST /api/code-generation/replace-files",
+      // "GET /api/code-generation/project-structure",
     ],
   });
 });

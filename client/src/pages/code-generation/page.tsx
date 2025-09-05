@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect,   } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { Plus, Trash2, Code, Copy, Download, Table } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useGetSchemas, type SchemaType } from "../common-services/useGetSchemas";
 
 interface Field {
   id: number;
@@ -97,6 +98,25 @@ const CodeGenerationPage = () => {
     enableSearch: true,
     enablePagination: true,
   });
+
+  // Load schemas from environment variable or default to "public, sales, hr" using useGetSchemas
+  // const schemasEnv = import.meta.env.VITE_DB_SCHEMAS || "public, sales, hr";
+  // const availableSchemas = schemasEnv.split(",").map((schema) => schema.trim());
+  
+  // why schemas not updated
+
+  const { data: schemas } = useGetSchemas();
+
+  useEffect(() => {
+    
+         console.log("Fetched schemas111:", schemas);
+    if (schemas && schemas.length > 0) {
+ 
+      setSelectedSchema(schemas[0].schema_name);
+      loadTables(schemas[0].schema_name);
+    }
+  }, [schemas]);
+
 
   // Update table configuration when fields change
   useEffect(() => {
@@ -1493,9 +1513,15 @@ export default ${entityUpper}`;
                       <SelectValue placeholder="Select Schema" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="public">Public</SelectItem>
+                      {/* load schemas */}
+                      {schemas && schemas.map((schema: SchemaType) => (
+                        <SelectItem key={schema.schema_name} value={schema.schema_name}>
+                          {schema.schema_name}
+                        </SelectItem>
+                      ))}
+                      {/* <SelectItem value="public">Public</SelectItem>
                       <SelectItem value="seed">Seed</SelectItem>
-                      <SelectItem value="core_data">Core Data</SelectItem>
+                      <SelectItem value="core_data">Core Data</SelectItem> */}
                     </SelectContent>
                   </Select>
                 </div>
