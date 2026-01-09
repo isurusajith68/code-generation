@@ -22,6 +22,9 @@ interface Field {
   selectOptions: string;
   radioOptions: string;
   defaultValue: string;
+  displayInTable: boolean;
+  searchable: boolean;
+  sortable: boolean;
 }
 
 interface TableInfo {
@@ -68,6 +71,9 @@ const TableConfiguration: React.FC<TableConfigurationProps> = ({
       selectOptions: "",
       radioOptions: "",
       defaultValue: "",
+      displayInTable: true,
+      searchable: true,
+      sortable: true,
     };
 
     if (isParent) {
